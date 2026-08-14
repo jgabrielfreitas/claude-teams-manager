@@ -148,6 +148,14 @@ export interface Ui {
   /** Runs a core call, turning any failure into a status line instead of a crash. */
   guard: <T>(fn: () => Promise<T>, success?: string) => Promise<T | undefined>;
 
+  /**
+   * Starts an action from a place that cannot await it — a key handler, an
+   * effect. The rejection lands on the status line instead of becoming an
+   * unhandled rejection, which on Node ≥ 15 would tear the process down
+   * mid-render and leave the terminal in raw mode.
+   */
+  dispatch: (action: () => Promise<unknown>) => void;
+
   /** Revision counter for the given event families; use it as an effect dep. */
   rev: (keys: RevKey[]) => number;
 
@@ -272,6 +280,18 @@ export function UiProvider({
     [notify],
   );
 
+  const dispatch = useCallback(
+    (action: () => Promise<unknown>) => {
+      try {
+        void action().catch((err: unknown) => notify(errorMessage(err), 'danger'));
+      } catch (err) {
+        // A throw before the first await never produced a promise.
+        notify(errorMessage(err), 'danger');
+      }
+    },
+    [notify],
+  );
+
   /* -------- realtime: one subscription, coalesced bursts -------- */
 
   useEffect(() => {
@@ -325,12 +345,14 @@ export function UiProvider({
   const decideApproval = useCallback(
     (approvalId: string, decision: ApprovalDecision) => {
       setApprovals((prev) => prev.filter((a) => a.id !== approvalId));
-      void guard(
-        () => core.resolveApproval({ approvalId, decision, decidedBy: 'user' }),
-        `Approval ${decision.replace('_', ' ')}.`,
+      dispatch(() =>
+        guard(
+          () => core.resolveApproval({ approvalId, decision, decidedBy: 'user' }),
+          `Approval ${decision.replace('_', ' ')}.`,
+        ),
       );
     },
-    [core, guard],
+    [core, guard, dispatch],
   );
 
   /* -------- dialogs -------- */
@@ -418,6 +440,7 @@ export function UiProvider({
       status,
       notify,
       guard,
+      dispatch,
       rev,
       approvals,
       decideApproval,
@@ -441,6 +464,7 @@ export function UiProvider({
       status,
       notify,
       guard,
+      dispatch,
       rev,
       approvals,
       decideApproval,

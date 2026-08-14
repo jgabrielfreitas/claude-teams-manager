@@ -74,7 +74,7 @@ function CommandPalette(): React.JSX.Element {
       else if (key.return) {
         const command = commands[cursor];
         ui.setOverlay(null);
-        if (command) void executeCommand(command.id, ui);
+        if (command) ui.dispatch(() => executeCommand(command.id, ui));
       }
     },
     active,

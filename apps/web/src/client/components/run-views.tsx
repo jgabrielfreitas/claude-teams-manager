@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import type { AgentDto, MessageDto, RunEventDto, TaskDto, TaskProgressDto } from '@claude-team/protocol';
-import { taskProgress, type Task } from '@claude-team/domain';
+import { isRunTerminal, taskProgress, type RunStatus, type Task } from '@claude-team/domain';
 import {
   eventTone,
   formatClock,
@@ -200,10 +200,8 @@ export function MessageThread({
  * Totals & progress
  * ------------------------------------------------------------------ */
 
-export function TaskProgressBar({ tasks }: { tasks: TaskDto[] }) {
-  // Shared rule, shared numbers: only `status` is read, so the DTO stands in
-  // for the domain entity here.
-  const progress = taskProgress(tasks as unknown as Task[]);
+/** The one rendering of a task-progress reading, wherever the numbers came from. */
+export function TaskProgressSummary({ progress }: { progress: TaskProgressDto }) {
   return (
     <div className="col" style={{ gap: 5 }}>
       <ProgressBar percent={progress.percent} tone={progress.failed > 0 ? 'danger' : 'active'} />
@@ -217,26 +215,53 @@ export function TaskProgressBar({ tasks }: { tasks: TaskDto[] }) {
   );
 }
 
-/** Live task progress for a run, fed by the event stream. */
+export function TaskProgressBar({ tasks }: { tasks: TaskDto[] }) {
+  // Shared rule, shared numbers: only `status` is read, so the DTO stands in
+  // for the domain entity here.
+  return <TaskProgressSummary progress={taskProgress(tasks as unknown as Task[])} />;
+}
+
 /**
- * `initial` lets a caller that already has progress (the dashboard gets it in
- * its single request) paint immediately, while the component still refreshes
- * itself from run events afterwards.
+ * Does this row have to fetch its own tasks and subscribe to the stream?
+ *
+ * Only when nobody handed it progress and the run can still change. The
+ * dashboard passes the progress from its single payload (which it reloads on
+ * every event), and a run in a terminal state will never move again — neither
+ * is worth a request per row.
  */
+export function needsLiveTasks(status: RunStatus, initial?: TaskProgressDto): boolean {
+  return initial === undefined && !isRunTerminal(status);
+}
+
+/** Task progress for a run in a list. */
 export function LiveRunProgress({
   runId,
+  status,
   initial,
 }: {
   runId: string;
+  status: RunStatus;
   initial?: TaskProgressDto;
 }) {
+  const live = needsLiveTasks(status, initial);
   const tasks = useResource(
-    () => client.getRunTasks(runId),
-    [runId],
-    (event) => eventTouchesRun(event, runId),
+    () => (live ? client.getRunTasks(runId) : Promise.resolve(undefined)),
+    [runId, live],
+    live ? (event) => eventTouchesRun(event, runId) : undefined,
   );
-  if (!tasks.data) return <ProgressBar percent={initial?.percent ?? 0} />;
-  return <TaskProgressBar tasks={tasks.data} />;
+
+  if (initial) return <TaskProgressSummary progress={initial} />;
+  if (tasks.data) return <TaskProgressBar tasks={tasks.data} />;
+  if (isRunTerminal(status)) {
+    // Nothing was fetched — say what the run's own state already tells us.
+    return (
+      <ProgressBar
+        percent={status === 'completed' ? 100 : 0}
+        tone={status === 'failed' ? 'danger' : status === 'completed' ? 'success' : 'muted'}
+      />
+    );
+  }
+  return <ProgressBar percent={0} />;
 }
 
 export function RunTotals({

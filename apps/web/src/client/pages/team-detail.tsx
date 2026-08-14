@@ -709,11 +709,13 @@ function TemplateDialog({
 }) {
   const act = useAction();
   const navigate = useNavigate();
-  const { catalog } = useCatalog();
+  const { catalog, settings } = useCatalog();
   const [templateId, setTemplateId] = useState(catalog.templates[0]?.id ?? '');
   const template = catalog.templates.find((t) => t.id === templateId);
-  const [model, setModel] = useState(template?.model ?? '');
-  const [effort, setEffort] = useState<AgentEffort>(template?.effort ?? 'medium');
+  // The template carries its own model and effort; with no template at all the
+  // fallback is the configured default, never a literal.
+  const [model, setModel] = useState(template?.model ?? settings.defaultModel);
+  const [effort, setEffort] = useState<AgentEffort>(template?.effort ?? settings.defaultEffort);
 
   const select = (id: string) => {
     const next = catalog.templates.find((t) => t.id === id);

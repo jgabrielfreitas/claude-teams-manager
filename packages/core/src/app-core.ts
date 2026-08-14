@@ -99,6 +99,27 @@ export interface AgentInspection {
   reachable: string[];
 }
 
+export interface ResolvedPresetMember {
+  templateId: string;
+  handle: string;
+  name: string;
+  role: string;
+  description: string;
+  /** The model this member will actually be created with. */
+  model: string;
+  /** The effort this member will actually be created with. */
+  effort: AgentEffort;
+  canMessage: string[];
+  orchestrator: boolean;
+}
+
+export interface ResolvedPreset {
+  id: string;
+  name: string;
+  description: string;
+  members: ResolvedPresetMember[];
+}
+
 export interface DashboardView {
   teams: Array<TeamWithAgents & { activeRunId?: string }>;
   activeRuns: Run[];
@@ -322,8 +343,37 @@ export class AppCore {
     return AGENT_TEMPLATES;
   }
 
-  listPresets() {
-    return TEAM_PRESETS;
+  /**
+   * Presets with every member already resolved to the concrete handle, model
+   * and effort `createTeamFromPreset` will actually use.
+   *
+   * The resolution chain (member override → template default) is applied here,
+   * once, so a "this is what you will get" preview in either surface cannot
+   * promise something the creation path does not produce.
+   */
+  listPresets(): ResolvedPreset[] {
+    return TEAM_PRESETS.map((preset) => ({
+      id: preset.id,
+      name: preset.name,
+      description: preset.description,
+      members: preset.members.flatMap((member) => {
+        const template = findTemplate(member.templateId);
+        if (!template) return [];
+        return [
+          {
+            templateId: member.templateId,
+            handle: member.handle ?? template.handle,
+            name: template.name,
+            role: template.role,
+            description: template.description,
+            model: member.model ?? template.model,
+            effort: member.effort ?? template.effort,
+            canMessage: member.canMessage ?? ['*'],
+            orchestrator: member.orchestrator ?? false,
+          },
+        ];
+      }),
+    }));
   }
 
   listToolGroups() {

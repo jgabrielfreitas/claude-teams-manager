@@ -24,7 +24,10 @@ import type { SelectItem, Ui } from './store.js';
  * ------------------------------------------------------------------ */
 
 export async function pickTeam(ui: Ui, title = 'Select a team'): Promise<TeamWithAgents | undefined> {
-  const teams = await ui.core.listTeams();
+  // Reads go through `guard` too: a storage failure is a status line, never a
+  // rejection escaping into a key handler.
+  const teams = await ui.guard(() => ui.core.listTeams());
+  if (!teams) return undefined;
   if (teams.length === 0) {
     ui.notify('No teams yet — press c to create one.', 'warning');
     return undefined;
@@ -101,7 +104,8 @@ export async function currentRun(ui: Ui): Promise<Run | undefined> {
 }
 
 export async function pickRun(ui: Ui, teamId?: string): Promise<Run | undefined> {
-  const runs = await ui.core.listRuns({ teamId, limit: 50 });
+  const runs = await ui.guard(() => ui.core.listRuns({ teamId, limit: 50 }));
+  if (!runs) return undefined;
   if (runs.length === 0) {
     ui.notify('No runs yet — press r on a team to start one.', 'warning');
     return undefined;
@@ -121,7 +125,8 @@ export async function pickRun(ui: Ui, teamId?: string): Promise<Run | undefined>
 }
 
 async function pickModel(ui: Ui, current?: string): Promise<string | undefined> {
-  const models = await ui.core.listModelsInUse();
+  const models = await ui.guard(() => ui.core.listModelsInUse());
+  if (!models) return undefined;
   const items: SelectItem[] = models.map((model) => ({
     value: model.id,
     label: model.label,
@@ -443,7 +448,8 @@ export async function editAgentPermissions(ui: Ui): Promise<void> {
 export async function editAgentCommunication(ui: Ui): Promise<void> {
   const agent = await currentAgent(ui);
   if (!agent) return;
-  const team = await ui.core.getTeam(agent.teamId);
+  const team = await ui.guard(() => ui.core.getTeam(agent.teamId));
+  if (!team) return;
   const teammates = team.agents.filter((a) => a.id !== agent.id);
   const items: SelectItem[] = [
     { value: '*', label: 'Everyone on the team', hint: 'wildcard' },
@@ -515,10 +521,10 @@ export async function messageAgent(ui: Ui): Promise<void> {
 export async function startRun(ui: Ui): Promise<void> {
   const team = await currentTeam(ui);
   if (!team) return;
-  if (team.agents.length === 0) {
-    ui.notify(`"${team.name}" has no agents yet. Add one before starting a run.`, 'warning');
-    return;
-  }
+  // Whether a team may start a run is the runtime's rule, and so is the way it
+  // is phrased: `RunManager.createRun` refuses an empty team and says why. The
+  // call below goes through `guard`, which puts that message on the status
+  // line — there is no second wording of the rule here.
   const objective = await ui.dialogs.text({
     title: `Start a run · ${team.name}`,
     label: 'objective',

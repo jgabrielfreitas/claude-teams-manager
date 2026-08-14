@@ -14,7 +14,6 @@ interface CatalogValue {
   catalog: CatalogDto;
   settings: SettingsDto;
   reload: () => void;
-  modelLabel: (id: string) => string;
 }
 
 const CatalogContext = createContext<CatalogValue | undefined>(undefined);
@@ -51,7 +50,6 @@ export function CatalogProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo<CatalogValue | undefined>(() => {
     if (!catalogData || !settingsData) return undefined;
-    const models = catalogData.models;
     return {
       catalog: catalogData,
       settings: settingsData,
@@ -59,7 +57,6 @@ export function CatalogProvider({ children }: { children: ReactNode }) {
         reloadCatalog();
         reloadSettings();
       },
-      modelLabel: (id: string) => models.find((m) => m.id === id)?.label ?? id,
     };
   }, [catalogData, settingsData, reloadCatalog, reloadSettings]);
 

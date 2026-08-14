@@ -3,6 +3,7 @@ import type {
   AgentMessageStatus,
   AgentMessageType,
   AgentStatus,
+  PermissionMode,
   RunEventType,
   RunStatus,
   TaskStatus,
@@ -77,6 +78,17 @@ export const MESSAGE_TYPE_UI: Record<AgentMessageType, { label: string; tone: To
   handoff: { label: 'handoff', tone: 'info', glyph: '⇥' },
 };
 
+/**
+ * Capability modes. This is the security-relevant screen in both surfaces, so
+ * "deny is red" is decided once — the same grant must not look different
+ * depending on where you opened it.
+ */
+export const PERMISSION_MODE_UI: Record<PermissionMode, StatusDescriptor> = {
+  allow: { label: 'allow', tone: 'success', glyph: '✓' },
+  ask: { label: 'ask', tone: 'warning', glyph: '?' },
+  deny: { label: 'deny', tone: 'danger', glyph: '✗' },
+};
+
 export const EFFORT_UI: Record<AgentEffort, { label: string; tone: Tone; bar: string }> = {
   low: { label: 'Low', tone: 'muted', bar: '▁' },
   medium: { label: 'Medium', tone: 'info', bar: '▃' },
@@ -145,6 +157,25 @@ export function formatRelative(date: Date | string | undefined, now = Date.now()
 export function truncate(text: string, max: number): string {
   const oneLine = (text ?? '').replace(/\s+/g, ' ').trim();
   return oneLine.length <= max ? oneLine : `${oneLine.slice(0, Math.max(0, max - 1))}…`;
+}
+
+/**
+ * How long a run has been going.
+ *
+ * The rule that matters — "a run that has not completed has been running until
+ * now" — is here rather than in each view, so a live run's elapsed time cannot
+ * mean something different in the terminal and in the browser.
+ */
+export function runDurationMs(
+  run: { startedAt?: Date | string; completedAt?: Date | string },
+  now = Date.now(),
+): number | undefined {
+  if (!run.startedAt) return undefined;
+  const started = new Date(run.startedAt).getTime();
+  if (Number.isNaN(started)) return undefined;
+  const ended = run.completedAt ? new Date(run.completedAt).getTime() : now;
+  if (Number.isNaN(ended)) return undefined;
+  return Math.max(0, ended - started);
 }
 
 /** A progress bar as text, identical in the terminal and in the browser. */

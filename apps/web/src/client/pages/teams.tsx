@@ -207,22 +207,20 @@ export function PresetDialog({ onClose }: { onClose: () => void }) {
 
   const preset = catalog.presets.find((p) => p.id === presetId);
 
+  // The catalog already carries what `createTeamFromPreset` will actually
+  // create, so this preview only layers the user's overrides on top — it never
+  // invents a model or effort the core would not produce.
   const members = useMemo(
     () =>
-      (preset?.members ?? []).map((member) => {
-        const template = catalog.templates.find((t) => t.id === member.templateId);
-        const handle = member.handle ?? template?.handle ?? member.templateId;
-        return {
-          handle,
-          name: template?.name ?? member.templateId,
-          role: template?.role ?? '',
-          orchestrator: Boolean(member.orchestrator),
-          model: overrides[handle]?.model ?? member.model ?? template?.model ?? settings.defaultModel,
-          effort:
-            overrides[handle]?.effort ?? member.effort ?? template?.effort ?? settings.defaultEffort,
-        };
-      }),
-    [preset, catalog.templates, overrides, settings],
+      (preset?.members ?? []).map((member) => ({
+        handle: member.handle,
+        name: member.name,
+        role: member.role,
+        orchestrator: member.orchestrator,
+        model: overrides[member.handle]?.model ?? member.model,
+        effort: overrides[member.handle]?.effort ?? member.effort,
+      })),
+    [preset, overrides],
   );
 
   const patch = (handle: string, value: { model?: string; effort?: AgentEffort }) =>

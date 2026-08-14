@@ -68,15 +68,15 @@ export function TeamsView({ height, columns, narrow }: ViewProps): React.JSX.Ele
 
   useKeys(
     (input, key) => {
-      if (input === 'c') void createTeam(ui);
-      else if (input === 'e') void editTeam(ui);
-      else if (input === 'd') void deleteTeam(ui);
-      else if (input === 'r') void startRun(ui);
-      else if (input === 'a') void createAgent(ui);
-      else if (input === 'o') void setOrchestrator(ui);
-      else if (input === 'y') void duplicateTeam(ui);
-      else if (input === 'x') void exportTeam(ui);
-      else if (input === 'I') void importTeam(ui);
+      if (input === 'c') ui.dispatch(() => createTeam(ui));
+      else if (input === 'e') ui.dispatch(() => editTeam(ui));
+      else if (input === 'd') ui.dispatch(() => deleteTeam(ui));
+      else if (input === 'r') ui.dispatch(() => startRun(ui));
+      else if (input === 'a') ui.dispatch(() => createAgent(ui));
+      else if (input === 'o') ui.dispatch(() => setOrchestrator(ui));
+      else if (input === 'y') ui.dispatch(() => duplicateTeam(ui));
+      else if (input === 'x') ui.dispatch(() => exportTeam(ui));
+      else if (input === 'I') ui.dispatch(() => importTeam(ui));
       else if (key.return) {
         if (ui.focus === 'list') ui.setFocus('detail');
         else {

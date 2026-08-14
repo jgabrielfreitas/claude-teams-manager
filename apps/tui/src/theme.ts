@@ -27,7 +27,6 @@ export const UI = {
   borderFocused: 'cyan',
   borderIdle: 'gray',
   dim: 'gray',
-  headerBg: 'cyan',
 } as const;
 
 export function borderColor(focused: boolean): string {

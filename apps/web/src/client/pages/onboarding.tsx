@@ -55,21 +55,18 @@ export function OnboardingPage() {
 
   const preset = catalog.presets.find((p) => p.id === presetId);
 
+  // Resolved by the core and delivered in the catalog: what you see here is
+  // exactly what `createTeamFromPreset` will create, plus your overrides.
   const members = useMemo(
     () =>
-      (preset?.members ?? []).map((member) => {
-        const template = catalog.templates.find((t) => t.id === member.templateId);
-        const handle = member.handle ?? template?.handle ?? member.templateId;
-        return {
-          handle,
-          role: template?.role ?? '',
-          orchestrator: Boolean(member.orchestrator),
-          model: overrides[handle]?.model ?? member.model ?? template?.model ?? settings.defaultModel,
-          effort:
-            overrides[handle]?.effort ?? member.effort ?? template?.effort ?? settings.defaultEffort,
-        };
-      }),
-    [preset, catalog.templates, overrides, settings],
+      (preset?.members ?? []).map((member) => ({
+        handle: member.handle,
+        role: member.role,
+        orchestrator: member.orchestrator,
+        model: overrides[member.handle]?.model ?? member.model,
+        effort: overrides[member.handle]?.effort ?? member.effort,
+      })),
+    [preset, overrides],
   );
 
   const finish = async () => {

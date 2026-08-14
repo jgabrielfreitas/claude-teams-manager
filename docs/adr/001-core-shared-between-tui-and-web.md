@@ -49,6 +49,28 @@ Supporting rules:
    method, so adding an endpoint fails to compile on both sides until both are
    updated.
 
+## What "shared" is enforced by, not just intended
+
+Three of these rules are checked mechanically, because good intentions drift:
+
+- **The event contract.** `packages/core` contains a compile-time assertion that
+  its `AppEvent` union still serialises to `AppEventDto` in
+  `@claude-team/protocol`. Adding a variant without updating the wire type is a
+  build error, not a silently blind web UI.
+- **The Node boundary.** `apps/web/tsconfig.client.json` references only
+  `domain`, `protocol` and `ui-shared`. The browser bundle *cannot* import
+  `@claude-team/core`; it would not compile.
+- **The presentation vocabulary.** `packages/ui-shared` has a test that walks
+  every status, message type, effort and permission mode declared in the domain
+  and fails if one has no descriptor — so a new state cannot render in one
+  surface and be blank in the other.
+
+Anything that is only a convention *will* drift. A review of the finished code
+found exactly that: the meaning of an unset capability group had been rewritten
+locally in the web UI with the wrong fallback, and permission-mode colours had
+diverged between two screens of the same app. Both were rules that belonged in
+`domain`/`ui-shared`; both are now there, with tests.
+
 ## Consequences
 
 - A new use case is written once and appears in both surfaces.

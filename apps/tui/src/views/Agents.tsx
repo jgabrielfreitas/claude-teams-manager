@@ -78,15 +78,15 @@ export function AgentsView({ height, columns, narrow }: ViewProps): React.JSX.El
 
   useKeys(
     (input, key) => {
-      if (input === 'c') void createAgent(ui);
-      else if (input === 'e') void editAgent(ui);
-      else if (input === 'M') void switchAgentModel(ui);
-      else if (input === 'E') void changeAgentEffort(ui);
-      else if (input === 'P') void editAgentPermissions(ui);
-      else if (input === 'w') void editAgentCommunication(ui);
-      else if (input === 'y') void duplicateAgent(ui);
-      else if (input === 'd') void deleteAgent(ui);
-      else if (input === 'm') void messageAgent(ui);
+      if (input === 'c') ui.dispatch(() => createAgent(ui));
+      else if (input === 'e') ui.dispatch(() => editAgent(ui));
+      else if (input === 'M') ui.dispatch(() => switchAgentModel(ui));
+      else if (input === 'E') ui.dispatch(() => changeAgentEffort(ui));
+      else if (input === 'P') ui.dispatch(() => editAgentPermissions(ui));
+      else if (input === 'w') ui.dispatch(() => editAgentCommunication(ui));
+      else if (input === 'y') ui.dispatch(() => duplicateAgent(ui));
+      else if (input === 'd') ui.dispatch(() => deleteAgent(ui));
+      else if (input === 'm') ui.dispatch(() => messageAgent(ui));
       else if (input === 'i' || key.return) ui.setFocus('detail');
     },
     ui.lock === 'view',

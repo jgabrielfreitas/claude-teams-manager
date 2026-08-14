@@ -46,14 +46,15 @@ export function MessagesView({ height, columns, narrow }: ViewProps): React.JSX.
   const nav = useListNav(entries.length, listActive);
 
   useEffect(() => {
-    if (!runId) void pickRunIfPossible(ui);
+    if (!runId) ui.dispatch(() => pickRunIfPossible(ui));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [runId]);
 
   useKeys(
     (input, key) => {
-      if (input === 'u') void pickRun(ui);
-      else if (input === 'm') void composeMessage(ui, agents, nav.index === 0 ? undefined : entries[nav.index]?.id);
+      if (input === 'u') ui.dispatch(() => pickRun(ui));
+      else if (input === 'm')
+        ui.dispatch(() => composeMessage(ui, agents, nav.index === 0 ? undefined : entries[nav.index]?.id));
       else if (key.return) ui.setFocus('detail');
     },
     ui.lock === 'view',
@@ -209,8 +210,8 @@ function Latest({
 }
 
 async function pickRunIfPossible(ui: ReturnType<typeof useUi>): Promise<void> {
-  const runs = await ui.core.listRuns({ limit: 1 });
-  if (runs[0]) ui.select({ runId: runs[0].id, teamId: runs[0].teamId });
+  const runs = await ui.guard(() => ui.core.listRuns({ limit: 1 }));
+  if (runs?.[0]) ui.select({ runId: runs[0].id, teamId: runs[0].teamId });
 }
 
 async function composeMessage(

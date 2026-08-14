@@ -1,6 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import type { AgentEffort, ToolPermission } from '@claude-team/domain';
+import {
+  TOOL_GROUPS,
+  permissionMode,
+  type AgentEffort,
+  type ToolPermission,
+} from '@claude-team/domain';
 import type { AgentDto, AgentInspectionDto } from '@claude-team/protocol';
 import { formatDuration } from '@claude-team/ui-shared';
 import { client } from '../api';
@@ -53,10 +58,12 @@ export function AgentDetailPage() {
   const [params, setParams] = useSearchParams();
   useDeclareSelection({ agentId });
 
+  // Only events that actually touch this agent — a run's own chatter must not
+  // turn the inspector into a poll.
   const inspection = useResource<AgentInspectionDto>(
     () => client.inspectAgent(agentId),
     [agentId],
-    (event) => eventTouchesAgent(event, agentId) || event.type === 'run.event',
+    (event) => eventTouchesAgent(event, agentId),
   );
 
   // Teammates, so messages and events render handles rather than raw ids.
@@ -175,12 +182,29 @@ export function AgentDetailPage() {
             {tab === 'overview' && (
               <Overview data={data} teammates={teammates.data ?? [data.agent]} />
             )}
-            {tab === 'config' && <ConfigTab agent={agent} onSaved={inspection.reload} />}
-            {tab === 'permissions' && <PermissionsTab agent={agent} onSaved={inspection.reload} />}
-            {tab === 'communication' && (
-              <CommunicationTab agent={agent} reachable={data.reachable} onSaved={inspection.reload} />
+            {/*
+              Each editor seeds its form from the agent it is given. Keying on
+              `updatedAt` re-seeds it whenever the agent changes underneath —
+              an edit made in the TUI or another tab — so Save can never write
+              back a snapshot taken before that change and silently revert it.
+            */}
+            {tab === 'config' && (
+              <ConfigTab key={agent.updatedAt} agent={agent} onSaved={inspection.reload} />
             )}
-            {tab === 'memory' && <MemoryTab agent={agent} onSaved={inspection.reload} />}
+            {tab === 'permissions' && (
+              <PermissionsTab key={agent.updatedAt} agent={agent} onSaved={inspection.reload} />
+            )}
+            {tab === 'communication' && (
+              <CommunicationTab
+                key={agent.updatedAt}
+                agent={agent}
+                reachable={data.reachable}
+                onSaved={inspection.reload}
+              />
+            )}
+            {tab === 'memory' && (
+              <MemoryTab key={agent.updatedAt} agent={agent} onSaved={inspection.reload} />
+            )}
 
             {action === 'message' && <MessageDialog agent={agent} onClose={close} />}
             {action === 'duplicate' && <DuplicateDialog agent={agent} onClose={close} />}
@@ -321,10 +345,6 @@ function ConfigTab({ agent, onSaved }: { agent: AgentDto; onSaved: () => void })
   });
   const [busy, setBusy] = useState(false);
 
-  useEffect(() => {
-    setForm((current) => ({ ...current, model: agent.model, effort: agent.effort }));
-  }, [agent.model, agent.effort]);
-
   const save = async () => {
     setBusy(true);
     await act(async () => {
@@ -458,7 +478,12 @@ function ConfigTab({ agent, onSaved }: { agent: AgentDto; onSaved: () => void })
 function PermissionsTab({ agent, onSaved }: { agent: AgentDto; onSaved: () => void }) {
   const act = useAction();
   const [tools, setTools] = useState<ToolPermission[]>(agent.tools);
-  const dirty = JSON.stringify(tools) !== JSON.stringify(agent.tools);
+  // Compare effective modes, not list shape: a group left unset means whatever
+  // `permissionMode` says it means, so an unset group and an explicit one that
+  // resolve to the same mode are not a change.
+  const dirty = TOOL_GROUPS.some(
+    (group) => permissionMode(tools, group) !== permissionMode(agent.tools, group),
+  );
 
   return (
     <Card

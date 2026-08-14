@@ -16,6 +16,7 @@ import {
   EFFORT_UI,
   MESSAGE_STATUS_UI,
   MESSAGE_TYPE_UI,
+  PERMISSION_MODE_UI,
   RUN_STATUS_UI,
   TASK_STATUS_UI,
   eventTone,
@@ -24,7 +25,6 @@ import {
   formatRelative,
   progressBar,
   truncate,
-  type Tone,
 } from '@claude-team/ui-shared';
 import { toneColor, UI } from '../theme.js';
 
@@ -97,12 +97,11 @@ export function CapabilityChips({
   return (
     <Box flexWrap="wrap">
       {groups.map((group) => {
-        const mode = permissionMode(tools, group.id);
-        const tone: Tone = mode === 'allow' ? 'success' : mode === 'ask' ? 'warning' : 'muted';
+        const mode = PERMISSION_MODE_UI[permissionMode(tools, group.id)];
         return (
           <Box key={group.id} width={width} flexShrink={0}>
-            <Text color={toneColor(tone)} wrap="truncate-end">
-              {mode === 'allow' ? '✓' : mode === 'ask' ? '?' : '✗'} {mode.padEnd(6)}
+            <Text color={toneColor(mode.tone)} wrap="truncate-end">
+              {mode.glyph} {mode.label.padEnd(6)}
               <Text color={UI.dim}>{truncate(group.label, Math.max(6, width - 10))}</Text>
             </Text>
           </Box>

@@ -622,6 +622,12 @@ handlers delegate to it one-to-one. Neither contains a business rule of its own.
 The domain is isomorphic, so the browser bundle imports the same entities, the
 same validation and the same `availableRunActions` the server uses.
 
+Three parts of that are enforced rather than merely intended: the core asserts
+at compile time that its event union still matches the wire contract the browser
+consumes; the client tsconfig makes importing the Node-only core a compile
+error; and a test fails if any domain status, message type, effort or permission
+mode lacks a shared presentation descriptor.
+
 Decisions are recorded in [`docs/adr/`](docs/adr/):
 
 - [001 — One application core, two presentations](docs/adr/001-core-shared-between-tui-and-web.md)
@@ -673,7 +679,7 @@ pnpm web -- --provider fake
 pnpm test
 ```
 
-149 tests, none of which touch the Claude API:
+163 tests, none of which touch the Claude API:
 
 - **Domain** — agent and team creation, handle uniqueness, cloning semantics,
   effort coercion, capability resolution, destructive-command detection, message
@@ -681,6 +687,9 @@ pnpm test
   topological order, run and task state machines, YAML round-trip.
 - **Provider** — capability→tool expansion including the git/shell interaction,
   approval categorisation, the effort adapter.
+- **Presentation** — every domain status, message type, effort and permission
+  mode has a shared descriptor (a missing one fails the build, not just one
+  surface), plus the formatters and run-duration derivation.
 - **Persistence** — a shared conformance suite run against *both* the SQLite and
   in-memory implementations: CRUD, cascades, unique constraints, sequence
   monotonicity under concurrency, filters, lossless round-trip.

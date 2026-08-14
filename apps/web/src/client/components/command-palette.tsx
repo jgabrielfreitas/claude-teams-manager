@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { SECTIONS, availableCommands, filterCommands, type CommandDefinition } from '@claude-team/ui-shared';
+import { availableRunActions, type RunAction, type RunStatus } from '@claude-team/domain';
 import type { SearchHitDto } from '@claude-team/protocol';
 import { client } from '../api';
 import { useSelection } from '../state/selection';
@@ -17,6 +18,24 @@ import { useAction, useToasts } from '../state/toasts';
 const SECTION_PATH = new Map<string, string>(
   SECTIONS.map((section) => [section.id, section.path]),
 );
+
+/** Run commands that are only legal in some run states, and the action they are. */
+const RUN_COMMAND_ACTION: Record<string, RunAction> = {
+  'run.pause': 'pause',
+  'run.resume': 'resume',
+  'run.cancel': 'cancel',
+  'run.retry': 'retry',
+};
+
+/**
+ * The same state machine the run page uses: a completed run cannot be paused,
+ * so the palette must not offer it either.
+ */
+function allowedInState(command: CommandDefinition, status: RunStatus | undefined): boolean {
+  const action = RUN_COMMAND_ACTION[command.id];
+  if (!action) return true;
+  return status !== undefined && availableRunActions(status).includes(action);
+}
 
 export function CommandPalette({ open, onClose }: { open: boolean; onClose: () => void }) {
   const navigate = useNavigate();
@@ -36,10 +55,10 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
           team: Boolean(selection.teamId),
           agent: Boolean(selection.agentId),
           run: Boolean(selection.runId),
-        }),
+        }).filter((command) => allowedInState(command, selection.runStatus)),
         query,
       ),
-    [selection.teamId, selection.agentId, selection.runId, query],
+    [selection.teamId, selection.agentId, selection.runId, selection.runStatus, query],
   );
 
   useEffect(() => {

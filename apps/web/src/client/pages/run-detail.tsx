@@ -2,14 +2,14 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { availableRunActions, formatUsd, type RunAction } from '@claude-team/domain';
 import type { RunDetailDto } from '@claude-team/protocol';
-import { formatDuration, formatRelative } from '@claude-team/ui-shared';
+import { formatDuration, formatRelative, runDurationMs } from '@claude-team/ui-shared';
 import { client } from '../api';
 import { AgentAvatar } from '../components/agent-views';
 import {
   MessageThread,
   RunTotals,
   TaskBoard,
-  TaskProgressBar,
+  TaskProgressSummary,
   Timeline,
 } from '../components/run-views';
 import {
@@ -27,7 +27,6 @@ import { runStatusUi } from '../lib/tone';
 import { eventTouchesRun } from '@claude-team/protocol';
 import { useDeclareSelection } from '../state/selection';
 import { useAction } from '../state/toasts';
-import { durationOf } from './runs';
 
 type Tab = 'tasks' | 'timeline' | 'messages';
 
@@ -49,13 +48,14 @@ export function RunDetailPage() {
   const [params, setParams] = useSearchParams();
   const navigate = useNavigate();
   const act = useAction();
-  useDeclareSelection({ runId });
 
   const detail = useResource<RunDetailDto>(
     () => client.getRun(runId),
     [runId],
     (event) => eventTouchesRun(event, runId),
   );
+
+  useDeclareSelection({ runId, runStatus: detail.data?.run.status });
 
   const tab = (params.get('tab') as Tab | null) ?? 'tasks';
   const focusTaskId = params.get('task') ?? undefined;
@@ -114,7 +114,7 @@ export function RunDetailPage() {
                   <span className="page-sub">
                     created {formatRelative(data.run.createdAt)}
                     {data.run.startedAt &&
-                      ` · ran for ${formatDuration(durationOf(data.run.startedAt, data.run.completedAt))}`}
+                      ` · ran for ${formatDuration(runDurationMs(data.run))}`}
                   </span>
                   {data.isActive && <span className="tiny muted">live</span>}
                 </div>
@@ -152,7 +152,7 @@ export function RunDetailPage() {
               <div className="col" style={{ gap: 20 }}>
                 <Card title="Progress">
                   <div className="col" style={{ gap: 14 }}>
-                    <TaskProgressBar tasks={data.tasks} />
+                    <TaskProgressSummary progress={data.progress} />
                     <RunTotals totals={data.run.totals} />
                     {data.run.summary && (
                       <div className="notice-box">

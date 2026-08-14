@@ -33,13 +33,15 @@ export function Onboarding({ columns }: { columns: number; height: number }): Re
   const [workspace, setWorkspace] = useState(process.cwd());
   const [team, setTeam] = useState<TeamWithAgents | undefined>();
 
+  // Depends on `workspace`: changing the directory at step 3 must re-detect,
+  // or the git information shown for it would still describe the old one.
   const environment = useLoader(async () => {
     const [detected, health] = await Promise.all([
       ui.core.detectEnvironment(workspace),
       ui.core.checkProvider(),
     ]);
     return { detected, health };
-  }, []);
+  }, [workspace, ui.core]);
 
   const finish = async () => {
     await ui.guard(() => ui.core.completeOnboarding());
@@ -52,7 +54,7 @@ export function Onboarding({ columns }: { columns: number; height: number }): Re
 
   useKeys(
     (input, key) => {
-      if (input === 's') void finish();
+      if (input === 's') ui.dispatch(finish);
       else if (key.leftArrow || input === 'b') back();
     },
     ui.lock === 'view',
@@ -276,10 +278,10 @@ function WorkspaceStep({
   useKeys(
     (input, key) => {
       if (key.return) {
-        void ui.core.updateSettings({ defaultWorkspace: workspace }).catch(() => undefined);
+        ui.dispatch(() => ui.guard(() => ui.core.updateSettings({ defaultWorkspace: workspace })));
         onNext();
       } else if (input === 'e') {
-        void (async () => {
+        ui.dispatch(async () => {
           const value = await ui.dialogs.text({
             title: 'Workspace',
             label: 'path',
@@ -287,7 +289,7 @@ function WorkspaceStep({
             help: 'Agents read and write inside this directory.',
           });
           if (value?.trim()) setWorkspace(value.trim());
-        })();
+        });
       }
     },
     active,
@@ -348,7 +350,7 @@ function TeamStep({
       }
       const preset = presets[nav.index];
       if (!preset) return;
-      void (async () => {
+      ui.dispatch(async () => {
         const created = await ui.guard(
           () => ui.core.createTeamFromPreset({ presetId: preset.id, workspace }),
           `Created "${preset.name}".`,
@@ -358,7 +360,7 @@ function TeamStep({
           ui.select({ teamId: created.id });
           onNext();
         }
-      })();
+      });
     },
     active,
   );
@@ -413,7 +415,7 @@ function ModelsStep({
 
   const refresh = async () => {
     if (!team) return;
-    const updated = await ui.core.getTeam(team.id).catch(() => undefined);
+    const updated = await ui.guard(() => ui.core.getTeam(team.id));
     if (updated) setTeam(updated);
   };
 
@@ -426,8 +428,9 @@ function ModelsStep({
       }
       if (!agent) return;
       if (input === 'm') {
-        void (async () => {
-          const models = await ui.core.listModelsInUse();
+        ui.dispatch(async () => {
+          const models = await ui.guard(() => ui.core.listModelsInUse());
+          if (!models) return;
           const value = await ui.dialogs.select({
             title: `Model · ${agent.handle}`,
             items: models.map((model) => ({ value: model.id, label: model.label, hint: model.tier })),
@@ -437,9 +440,9 @@ function ModelsStep({
             await ui.guard(() => ui.core.updateAgentModel(agent.id, value));
             await refresh();
           }
-        })();
+        });
       } else if (input === 'e') {
-        void (async () => {
+        ui.dispatch(async () => {
           const value = await ui.dialogs.select({
             title: `Effort · ${agent.handle}`,
             items: ui.core.listEfforts().map((effort) => ({
@@ -453,7 +456,7 @@ function ModelsStep({
             await ui.guard(() => ui.core.updateAgentEffort(agent.id, value as Agent['effort']));
             await refresh();
           }
-        })();
+        });
       }
     },
     active,
@@ -522,7 +525,7 @@ function PermissionsStep({
       }
       const agent = agents[nav.index];
       if (!agent || input !== 'p') return;
-      void (async () => {
+      ui.dispatch(async () => {
         const tools = await ui.dialogs.permissions({
           title: `Capabilities · ${agent.handle}`,
           permissions: agent.tools,
@@ -531,10 +534,10 @@ function PermissionsStep({
         if (!tools) return;
         await ui.guard(() => ui.core.updateAgentTools(agent.id, tools));
         if (team) {
-          const updated = await ui.core.getTeam(team.id).catch(() => undefined);
+          const updated = await ui.guard(() => ui.core.getTeam(team.id));
           if (updated) setTeam(updated);
         }
-      })();
+      });
     },
     active,
   );
@@ -576,15 +579,15 @@ function ObjectiveStep({
   useKeys(
     (input, key) => {
       if (input === 'n') {
-        void onDone();
+        ui.dispatch(onDone);
         return;
       }
       if (!key.return) return;
       if (!team) {
-        void onDone();
+        ui.dispatch(onDone);
         return;
       }
-      void (async () => {
+      ui.dispatch(async () => {
         const objective = await ui.dialogs.text({
           title: `First task for ${team.name}`,
           label: 'objective',
@@ -597,14 +600,14 @@ function ObjectiveStep({
           );
           if (run) {
             ui.select({ runId: run.id, teamId: team.id });
-            await ui.core.completeOnboarding().catch(() => undefined);
+            await ui.guard(() => ui.core.completeOnboarding());
             ui.setOnboarding(false);
             ui.setSection('runs');
             return;
           }
         }
         await onDone();
-      })();
+      });
     },
     active,
   );

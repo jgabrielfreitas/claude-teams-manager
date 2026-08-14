@@ -33,8 +33,8 @@ export function DashboardView({ height, columns, narrow }: ViewProps): React.JSX
   useKeys(
     (input, key) => {
       if (key.return) ui.setSection('teams');
-      else if (input === 'c') void createTeam(ui);
-      else if (input === 'r') void startRun(ui);
+      else if (input === 'c') ui.dispatch(() => createTeam(ui));
+      else if (input === 'r') ui.dispatch(() => startRun(ui));
     },
     ui.lock === 'view',
   );

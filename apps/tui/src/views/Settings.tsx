@@ -72,7 +72,8 @@ const ROWS: Row[] = [
     value: (s) => s.defaultModel,
     help: 'Model given to a new agent when nothing else says otherwise.',
     edit: async (ui, s) => {
-      const models = await ui.core.listModelsInUse();
+      const models = await ui.guard(() => ui.core.listModelsInUse());
+      if (!models) return;
       const value = await ui.dialogs.select({
         title: 'Default model',
         items: models.map((m) => ({ value: m.id, label: m.label, hint: m.tier })),
@@ -87,7 +88,8 @@ const ROWS: Row[] = [
     value: (s) => s.defaultOrchestratorModel,
     help: 'Suggested model for the agent that coordinates a team.',
     edit: async (ui, s) => {
-      const models = await ui.core.listModelsInUse();
+      const models = await ui.guard(() => ui.core.listModelsInUse());
+      if (!models) return;
       const value = await ui.dialogs.select({
         title: 'Orchestrator model',
         items: models.map((m) => ({ value: m.id, label: m.label, hint: m.tier })),
@@ -304,17 +306,17 @@ export function SettingsView({ height, columns, narrow }: ViewProps): React.JSX.
     (input, key) => {
       if ((key.return || input === 'e') && settings) {
         const row = ROWS[nav.index];
-        if (row) void row.edit(ui, settings);
+        if (row) ui.dispatch(() => row.edit(ui, settings));
       } else if (input === 'R') setEnvToken((token) => token + 1);
-      else if (input === 'p') void checkProvider(ui);
+      else if (input === 'p') ui.dispatch(() => checkProvider(ui));
       else if (input === 'X') {
-        void (async () => {
+        ui.dispatch(async () => {
           const ok = await ui.dialogs.confirm({
             title: 'Reset every setting to its default?',
             danger: true,
           });
           if (ok) await ui.guard(() => ui.core.resetSettings(), 'Settings reset.');
-        })();
+        });
       }
     },
     ui.lock === 'view',

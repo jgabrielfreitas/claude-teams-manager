@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import type { RunStatus } from '@claude-team/domain';
 
 /**
  * What the user currently has "selected", so the shared command catalogue can
@@ -9,6 +10,8 @@ export interface Selection {
   teamId?: string;
   agentId?: string;
   runId?: string;
+  /** Status of the selected run, so the palette can offer only legal actions. */
+  runStatus?: RunStatus;
 }
 
 interface SelectionValue extends Selection {
@@ -35,9 +38,9 @@ export function useSelection(): SelectionValue {
 /** Declares what this page has selected for as long as it is mounted. */
 export function useDeclareSelection(selection: Selection): void {
   const { set } = useSelection();
-  const { teamId, agentId, runId } = selection;
+  const { teamId, agentId, runId, runStatus } = selection;
   useEffect(() => {
-    set({ teamId, agentId, runId });
+    set({ teamId, agentId, runId, runStatus });
     return () => set({});
-  }, [set, teamId, agentId, runId]);
+  }, [set, teamId, agentId, runId, runStatus]);
 }

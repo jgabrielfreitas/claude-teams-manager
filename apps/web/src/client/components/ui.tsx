@@ -17,10 +17,6 @@ export function StatusPill({ status, title }: { status: StatusDescriptor; title?
   );
 }
 
-export function ToneDot({ tone, busy }: { tone: Tone; busy?: boolean }) {
-  return <span className={`dot${busy ? ' busy' : ''} ${toneClass(tone)}`} />;
-}
-
 export function ModelBadge({ model }: { model: string }) {
   return (
     <span className="badge model" title={`Model: ${model}`}>

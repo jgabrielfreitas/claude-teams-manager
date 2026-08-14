@@ -13,6 +13,7 @@ import {
   RUN_STATUS_UI,
   formatDuration,
   formatRelative,
+  runDurationMs,
   truncate,
 } from '@claude-team/ui-shared';
 import { toneColor, UI } from '../theme.js';
@@ -66,16 +67,16 @@ export function RunsView({ height, columns, narrow }: ViewProps): React.JSX.Elem
 
   useKeys(
     (input, key) => {
-      if (input === 'r') void startRun(ui);
+      if (input === 'r') ui.dispatch(() => startRun(ui));
       else if (input === 'p') {
         if (!run) return;
         const allowed = availableRunActions(run.status);
-        if (allowed.includes('pause')) void runAction(ui, 'pause');
-        else if (allowed.includes('resume')) void runAction(ui, 'resume');
+        if (allowed.includes('pause')) ui.dispatch(() => runAction(ui, 'pause'));
+        else if (allowed.includes('resume')) ui.dispatch(() => runAction(ui, 'resume'));
         else ui.notify(`A ${RUN_STATUS_UI[run.status].label} run cannot be paused or resumed.`, 'warning');
-      } else if (input === 'x') void runAction(ui, 'cancel');
-      else if (input === 'T') void runAction(ui, 'retry');
-      else if (input === 'm') void messageAgent(ui);
+      } else if (input === 'x') ui.dispatch(() => runAction(ui, 'cancel'));
+      else if (input === 'T') ui.dispatch(() => runAction(ui, 'retry'));
+      else if (input === 'm') ui.dispatch(() => messageAgent(ui));
       else if (input === 'v') ui.setRunMode(ui.runMode === 'replay' ? 'live' : 'replay');
       else if (input === 'l' || key.return) ui.setFocus('detail');
     },
@@ -166,9 +167,7 @@ function RunDetail({
   const handleOf = (agentId?: string) => agents.find((a) => a.id === agentId)?.handle;
   const titleOf = (taskId: string) => tasks.find((t) => t.id === taskId)?.title ?? taskId;
 
-  const durationMs = run.startedAt
-    ? (run.completedAt ? run.completedAt.getTime() : Date.now()) - run.startedAt.getTime()
-    : undefined;
+  const durationMs = runDurationMs(run);
 
   const timelineHeight = Math.max(3, height - 22 - Math.min(tasks.length, 8));
   const visibleEvents = replay

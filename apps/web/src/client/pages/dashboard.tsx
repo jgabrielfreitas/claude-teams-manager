@@ -88,7 +88,11 @@ export function DashboardPage() {
                           <StatusPill status={runStatusUi(run.status)} />
                           <span className="col" style={{ gap: 4, flex: 1 }}>
                             <span className="truncate">{truncate(run.objective, 90)}</span>
-                            <LiveRunProgress runId={run.id} initial={data.progress?.[run.id]} />
+                            <LiveRunProgress
+                              runId={run.id}
+                              status={run.status}
+                              initial={data.progress?.[run.id]}
+                            />
                           </span>
                           <span className="tiny muted nowrap">
                             {run.totals.agentActivations} activations

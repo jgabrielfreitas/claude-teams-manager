@@ -63,6 +63,28 @@ describe('team use cases', () => {
     await app.shutdown();
   });
 
+  it('advertises presets already resolved to what creation will produce', async () => {
+    const app = await core();
+    const preset = app.listPresets().find((p) => p.id === 'software-engineering')!;
+
+    // Every member is concrete: a UI previewing this cannot promise a model or
+    // effort that `createTeamFromPreset` would not actually use.
+    for (const member of preset.members) {
+      expect(member.handle).toBeTruthy();
+      expect(member.model).toBeTruthy();
+      expect(member.effort).toBeTruthy();
+    }
+
+    const team = await app.createTeamFromPreset({ presetId: preset.id });
+    expect(team.agents.map((a) => `${a.handle}:${a.model}:${a.effort}`)).toEqual(
+      preset.members.map((m) => `${m.handle}:${m.model}:${m.effort}`),
+    );
+    expect(preset.members.find((m) => m.orchestrator)?.handle).toBe(
+      team.agents.find((a) => a.id === team.orchestratorId)?.handle,
+    );
+    await app.shutdown();
+  });
+
   it('applies per-agent model and effort overrides from the wizard', async () => {
     const app = await core();
     const team = await app.createTeamFromPreset({

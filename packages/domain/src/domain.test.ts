@@ -17,6 +17,7 @@ import {
   createTask,
   createTeam,
   danglingDependencies,
+  defaultToolPermissions,
   estimateCostUsd,
   findCycles,
   inboxFor,
@@ -35,6 +36,7 @@ import {
   unreadCount,
   type Agent,
   type Task,
+  type ToolPermission,
 } from './index.js';
 
 /* ------------------------------------------------------------------ *
@@ -168,6 +170,25 @@ describe('capability permissions', () => {
     expect(permissionMode(permissions, 'filesystem_read')).toBe('allow');
     expect(permissionMode(permissions, 'terminal')).toBe('ask');
     expect(permissionMode(permissions, 'filesystem_write')).toBe('deny');
+  });
+
+  it('falls back to the capability’s own default when a group is unset', () => {
+    // This is the rule every surface must agree on: an agent whose `tools` list
+    // is missing a group is NOT implicitly denied — the runtime uses the
+    // capability's declared default, so any UI that assumes "deny" would show
+    // something different from what actually happens.
+    const partial: ToolPermission[] = [{ group: 'terminal', mode: 'allow' }];
+
+    expect(permissionMode(partial, 'terminal')).toBe('allow');
+    expect(permissionMode(partial, 'filesystem_read')).toBe('allow');
+    expect(permissionMode(partial, 'filesystem_write')).toBe('ask');
+    expect(permissionMode(partial, 'browser')).toBe('deny');
+    expect(permissionMode(partial, 'agent_messaging')).toBe('allow');
+
+    // And `defaultToolPermissions()` is exactly those defaults, made explicit.
+    for (const permission of defaultToolPermissions()) {
+      expect(permission.mode).toBe(permissionMode([], permission.group));
+    }
   });
 
   it('recognises destructive shell commands', () => {

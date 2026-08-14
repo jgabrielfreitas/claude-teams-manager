@@ -101,14 +101,6 @@ export function Dim({ children }: { children: React.ReactNode }): React.JSX.Elem
   return <Text color={UI.dim}>{children}</Text>;
 }
 
-export function Toned({ tone, children, bold }: { tone: Tone; children: React.ReactNode; bold?: boolean }) {
-  return (
-    <Text color={toneColor(tone)} bold={bold}>
-      {children}
-    </Text>
-  );
-}
-
 export function SectionTitle({ children }: { children: React.ReactNode }): React.JSX.Element {
   return (
     <Box marginTop={1}>

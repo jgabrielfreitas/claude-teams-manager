@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Box, Text, useApp } from 'ink';
 import { formatTokens, formatUsd, isRunTerminal, shortModelLabel, totalTokens } from '@claude-team/domain';
-import { EFFORT_UI, RUN_STATUS_UI, formatDuration, truncate } from '@claude-team/ui-shared';
+import { EFFORT_UI, RUN_STATUS_UI, formatDuration, runDurationMs, truncate } from '@claude-team/ui-shared';
 import { toneColor, UI } from '../theme.js';
 import { useLoader, useTerminalSize } from '../lib/hooks.js';
 import { useUi } from '../store.js';
@@ -48,9 +48,7 @@ export function RunLive({ runId }: { runId: string }): React.JSX.Element {
   const status = RUN_STATUS_UI[run.status];
   const handleOf = (agentId?: string) => agents.find((agent) => agent.id === agentId)?.handle;
   const timelineHeight = Math.max(6, size.rows - 18);
-  const durationMs = run.startedAt
-    ? (run.completedAt ? run.completedAt.getTime() : Date.now()) - run.startedAt.getTime()
-    : undefined;
+  const durationMs = runDurationMs(run);
 
   return (
     <Box flexDirection="column" width={size.columns}>

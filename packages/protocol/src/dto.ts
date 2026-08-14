@@ -56,11 +56,25 @@ export interface CatalogDto {
     handle: string;
     orchestratorCapable?: boolean;
   }>;
+  /**
+   * Presets with every member already resolved to the handle, model and effort
+   * the core will actually create — so a preview cannot promise otherwise.
+   */
   presets: Array<{
     id: string;
     name: string;
     description: string;
-    members: Array<{ templateId: string; handle?: string; model?: string; effort?: AgentEffort; orchestrator?: boolean }>;
+    members: Array<{
+      templateId: string;
+      handle: string;
+      name: string;
+      role: string;
+      description: string;
+      model: string;
+      effort: AgentEffort;
+      canMessage: string[];
+      orchestrator: boolean;
+    }>;
   }>;
   providers: Array<{ id: string; label: string; current: boolean }>;
 }

@@ -7,7 +7,7 @@ import {
   type PermissionMode,
   type ToolPermission,
 } from '@claude-team/domain';
-import type { Tone } from '@claude-team/ui-shared';
+import { PERMISSION_MODE_UI } from '@claude-team/ui-shared';
 import { toneColor, UI } from '../theme.js';
 import { useKeys, useListNav, useRawMode, windowOf } from '../lib/hooks.js';
 import { useUi, type DialogRequest } from '../store.js';
@@ -252,12 +252,6 @@ function ConfirmDialog({
  * Permissions
  * ------------------------------------------------------------------ */
 
-const MODE_TONE: Record<PermissionMode, Tone> = {
-  allow: 'success',
-  ask: 'warning',
-  deny: 'danger',
-};
-
 function PermissionsDialog({
   request,
   active,
@@ -309,11 +303,16 @@ function PermissionsDialog({
       {slice.map((group, index) => {
         const isCursor = offset + index === nav.index;
         const mode = modes[group.id] ?? group.defaultMode;
+        // Same descriptor the capability chips and the web UI use: a grant
+        // cannot look different depending on which screen you opened.
+        const modeUi = PERMISSION_MODE_UI[mode];
         return (
           <ListRow key={group.id} selected={isCursor} focused>
             <Box>
               <Box width={10} flexShrink={0}>
-                <Text color={toneColor(MODE_TONE[mode])}>{mode.padEnd(6)}</Text>
+                <Text color={toneColor(modeUi.tone)}>
+                  {modeUi.glyph} {modeUi.label.padEnd(6)}
+                </Text>
               </Box>
               <Box width={22} flexShrink={0}>
                 <Text wrap="truncate-end">

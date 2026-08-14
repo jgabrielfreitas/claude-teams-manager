@@ -1,9 +1,18 @@
 import { useEffect, useState } from 'react';
-import type { AgentEffort, ToolGroupId, ToolPermission, PermissionMode } from '@claude-team/domain';
+import {
+  PERMISSION_MODES,
+  TOOL_GROUPS,
+  permissionMode,
+  type AgentEffort,
+  type PermissionMode,
+  type ToolGroupId,
+  type ToolPermission,
+} from '@claude-team/domain';
 import type { WorkspaceDto } from '@claude-team/protocol';
+import { PERMISSION_MODE_UI } from '@claude-team/ui-shared';
 import { client } from '../api';
 import { useCatalog } from '../state/catalog';
-import { effortUi, toneClass } from '../lib/tone';
+import { effortUi } from '../lib/tone';
 import { Field, Segmented } from './ui';
 
 /* ------------------------------------------------------------------ *
@@ -60,30 +69,6 @@ export function EffortSelect({
         title: effort.description,
       }))}
     />
-  );
-}
-
-/** The per-agent pair, side by side — the one control users reach for most. */
-export function ModelEffortRow({
-  model,
-  effort,
-  onModel,
-  onEffort,
-}: {
-  model: string;
-  effort: AgentEffort;
-  onModel: (model: string) => void;
-  onEffort: (effort: AgentEffort) => void;
-}) {
-  return (
-    <div className="form-grid">
-      <Field label="Model" hint="This agent only.">
-        <ModelSelect value={model} onChange={onModel} />
-      </Field>
-      <Field label="Effort" hint="Reasoning depth for this agent only.">
-        <EffortSelect value={effort} onChange={onEffort} />
-      </Field>
-    </div>
   );
 }
 
@@ -159,14 +144,30 @@ export function WorkspaceField({
  * Tool permissions
  * ------------------------------------------------------------------ */
 
-const MODES: PermissionMode[] = ['allow', 'ask', 'deny'];
+/**
+ * The permission list an edit produces: every group, with an explicit mode.
+ *
+ * Groups the user never touched keep the mode the *runtime* gives them
+ * (`permissionMode`, which falls back to the group's default), so saving from
+ * here cannot leave a group unset — which is what made the two surfaces
+ * disagree about an agent's effective permissions.
+ */
+export function withPermissionMode(
+  permissions: ToolPermission[],
+  group: ToolGroupId,
+  mode: PermissionMode,
+): ToolPermission[] {
+  return TOOL_GROUPS.map((id) => ({
+    group: id,
+    mode: id === group ? mode : permissionMode(permissions, id),
+  }));
+}
 
-const MODE_TONE = {
-  allow: 'success',
-  ask: 'warning',
-  deny: 'muted',
-} as const;
-
+/**
+ * What an unset capability group means is a runtime rule, not a rendering
+ * detail: `permissionMode` is the same function the engine consults, so this
+ * editor cannot show `deny` where the agent would actually be allowed.
+ */
 export function PermissionEditor({
   value,
   onChange,
@@ -176,15 +177,10 @@ export function PermissionEditor({
 }) {
   const { catalog } = useCatalog();
 
-  const modeOf = (group: ToolGroupId): PermissionMode =>
-    value.find((permission) => permission.group === group)?.mode ?? 'deny';
+  const modeOf = (group: ToolGroupId): PermissionMode => permissionMode(value, group);
 
-  const setMode = (group: ToolGroupId, mode: PermissionMode) => {
-    const next = value.some((permission) => permission.group === group)
-      ? value.map((permission) => (permission.group === group ? { ...permission, mode } : permission))
-      : [...value, { group, mode }];
-    onChange(next);
-  };
+  const setMode = (group: ToolGroupId, mode: PermissionMode) =>
+    onChange(withPermissionMode(value, group, mode));
 
   return (
     <div className="col" style={{ gap: 10 }}>
@@ -202,32 +198,14 @@ export function PermissionEditor({
           <Segmented<PermissionMode>
             value={modeOf(group.id)}
             onChange={(mode) => setMode(group.id, mode)}
-            toneOf={(mode) => MODE_TONE[mode]}
-            options={MODES.map((mode) => ({ value: mode, label: mode }))}
+            toneOf={(mode) => PERMISSION_MODE_UI[mode].tone}
+            options={PERMISSION_MODES.map((mode) => ({
+              value: mode,
+              label: `${PERMISSION_MODE_UI[mode].glyph} ${PERMISSION_MODE_UI[mode].label}`,
+            }))}
           />
         </div>
       ))}
-    </div>
-  );
-}
-
-export function PermissionSummary({ tools }: { tools: ToolPermission[] }) {
-  const { catalog } = useCatalog();
-  return (
-    <div className="row" style={{ gap: 6 }}>
-      {tools.map((permission) => {
-        const group = catalog.toolGroups.find((g) => g.id === permission.group);
-        return (
-          <span
-            key={permission.group}
-            className={`badge ${toneClass(MODE_TONE[permission.mode])}`}
-            style={{ color: 'var(--tone)' }}
-            title={`${group?.label ?? permission.group}: ${permission.mode}`}
-          >
-            {group?.label ?? permission.group}: {permission.mode}
-          </span>
-        );
-      })}
     </div>
   );
 }

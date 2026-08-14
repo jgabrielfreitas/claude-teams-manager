@@ -1,6 +1,6 @@
 import React from 'react';
 import { readFile } from 'node:fs/promises';
-import { render } from 'ink';
+import { render, type Instance } from 'ink';
 import { createAppCore, type AppCore } from '@claude-team/core';
 import { isDomainError } from '@claude-team/domain';
 import { App } from './App.js';
@@ -16,6 +16,58 @@ import { agentList, runList, teamExport, teamImport, teamList } from './cli/comm
  * (`team export`, `team list`) never pays for the interface.
  */
 
+/* ------------------------------------------------------------------ *
+ * Last resort
+ * ------------------------------------------------------------------ */
+
+/** Whatever Ink is currently driving, so a crash can give the terminal back. */
+let inkInstance: Instance | undefined;
+
+/** Set once the core is open: lets the handler close storage before exiting. */
+let shutdownHook: ((code: number) => Promise<void>) | undefined;
+
+/**
+ * Puts the terminal back the way we found it: raw mode off, cursor visible,
+ * Ink no longer holding the screen. Called before we print anything on a
+ * failure — a stack trace over a half-rendered frame in raw mode leaves the
+ * user with a shell that does not echo.
+ */
+function restoreTerminal(): void {
+  try {
+    inkInstance?.unmount();
+  } catch {
+    /* the terminal matters more than why unmounting failed */
+  }
+  inkInstance = undefined;
+  const stdin = process.stdin;
+  if (stdin.isTTY && typeof stdin.setRawMode === 'function') {
+    try {
+      stdin.setRawMode(false);
+    } catch {
+      /* nothing left to try */
+    }
+  }
+  if (process.stdout.isTTY) process.stdout.write('\u001B[?25h');
+}
+
+/**
+ * Every action already reports its own failures (`ui.guard`, `ui.dispatch`).
+ * This is the net under those: without it, Node ≥ 15 kills the process on an
+ * unhandled rejection, which mid-render means a terminal stuck in raw mode.
+ */
+function bail(reason: unknown): void {
+  restoreTerminal();
+  process.stderr.write(
+    `claude-team: unhandled error — ${reason instanceof Error ? (reason.stack ?? reason.message) : String(reason)}\n`,
+  );
+  if (shutdownHook) void shutdownHook(1);
+  else process.exit(1);
+}
+
+function installLastResortHandler(): void {
+  process.on('unhandledRejection', (reason: unknown) => bail(reason));
+}
+
 async function version(): Promise<string> {
   try {
     const raw = await readFile(new URL('../package.json', import.meta.url), 'utf8');
@@ -26,6 +78,7 @@ async function version(): Promise<string> {
 }
 
 async function main(): Promise<void> {
+  installLastResortHandler();
   const args = parseArgs(process.argv.slice(2));
 
   if (args.errors.length > 0) {
@@ -68,6 +121,7 @@ async function main(): Promise<void> {
     }
     process.exit(code);
   };
+  shutdownHook = shutdown;
   process.on('SIGINT', () => void shutdown(0));
   process.on('SIGTERM', () => void shutdown(0));
 
@@ -154,7 +208,9 @@ async function main(): Promise<void> {
           <RunLive runId={runId} />
         </UiProvider>,
       );
+      inkInstance = live;
       await live.waitUntilExit();
+      inkInstance = undefined;
 
       const final = await core.getRun(runId).catch(() => undefined);
       await shutdown(final && final.status !== 'completed' ? 1 : 0);
@@ -176,11 +232,14 @@ async function main(): Promise<void> {
       </UiProvider>,
       { exitOnCtrlC: true },
     );
+    inkInstance = instance;
     await instance.waitUntilExit();
+    inkInstance = undefined;
     await shutdown(0);
   } catch (err) {
     // A domain failure is a message for the user ("no team matches…",
     // "matches 3 teams: …"); anything else is a bug and keeps its stack.
+    restoreTerminal();
     process.stderr.write(
       `${isDomainError(err) ? err.message : err instanceof Error ? (err.stack ?? err.message) : String(err)}\n`,
     );
@@ -188,4 +247,4 @@ async function main(): Promise<void> {
   }
 }
 
-void main();
+void main().catch(bail);

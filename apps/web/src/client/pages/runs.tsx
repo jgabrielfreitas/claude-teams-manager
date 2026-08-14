@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { formatDuration, formatRelative, truncate } from '@claude-team/ui-shared';
+import { formatDuration, formatRelative, runDurationMs, truncate } from '@claude-team/ui-shared';
 import { formatUsd } from '@claude-team/domain';
 import { client } from '../api';
 import { LiveRunProgress } from '../components/run-views';
@@ -89,12 +89,10 @@ export function RunsPage() {
                           <StatusPill status={runStatusUi(run.status)} />
                         </td>
                         <td>
-                          <LiveRunProgress runId={run.id} />
+                          <LiveRunProgress runId={run.id} status={run.status} />
                         </td>
                         <td className="small nowrap">{formatUsd(run.totals.costUsd)}</td>
-                        <td className="small nowrap">
-                          {formatDuration(durationOf(run.startedAt, run.completedAt))}
-                        </td>
+                        <td className="small nowrap">{formatDuration(runDurationMs(run))}</td>
                         <td className="small nowrap muted">{formatRelative(run.createdAt)}</td>
                       </tr>
                     ))}
@@ -107,11 +105,4 @@ export function RunsPage() {
       </Async>
     </>
   );
-}
-
-export function durationOf(startedAt?: string | Date, completedAt?: string | Date): number | undefined {
-  if (!startedAt) return undefined;
-  const start = new Date(startedAt).getTime();
-  const end = completedAt ? new Date(completedAt).getTime() : Date.now();
-  return end - start;
 }

@@ -17,7 +17,15 @@ import { useAction, useToasts } from '../state/toasts';
 
 /** Every application setting, plus where the data lives and whether Claude answers. */
 export function SettingsPage() {
-  const { settings, catalog, reload } = useCatalog();
+  const { settings } = useCatalog();
+  // Settings refresh from the event stream, so a form seeded before a change
+  // made elsewhere (the TUI, another tab) would PATCH every field back to the
+  // old snapshot on the next Save. A new `updatedAt` re-seeds the form.
+  return <SettingsForm key={settings.updatedAt} settings={settings} />;
+}
+
+function SettingsForm({ settings }: { settings: SettingsDto }) {
+  const { catalog, reload } = useCatalog();
   const [params] = useSearchParams();
   const act = useAction();
   const { notify } = useToasts();
