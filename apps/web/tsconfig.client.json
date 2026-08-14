@@ -1,0 +1,21 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "./src/client",
+    "outDir": "./dist/types-client",
+    "tsBuildInfoFile": "./dist/tsconfig.client.tsbuildinfo",
+    "emitDeclarationOnly": true,
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "jsx": "react-jsx",
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "types": [],
+    "noEmitOnError": false
+  },
+  "include": ["src/client/**/*"],
+  "references": [
+    { "path": "../../packages/domain" },
+    { "path": "../../packages/protocol" },
+    { "path": "../../packages/ui-shared" }
+  ]
+}

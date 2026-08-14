@@ -1,0 +1,14 @@
+{
+  "files": [],
+  "references": [
+    { "path": "./packages/domain" },
+    { "path": "./packages/persistence" },
+    { "path": "./packages/provider" },
+    { "path": "./packages/runtime" },
+    { "path": "./packages/core" },
+    { "path": "./packages/protocol" },
+    { "path": "./packages/ui-shared" },
+    { "path": "./apps/tui" },
+    { "path": "./apps/web" }
+  ]
+}

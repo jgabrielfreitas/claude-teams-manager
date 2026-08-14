@@ -1,0 +1,38 @@
+{
+  "name": "claude-team",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.33.0",
+  "engines": {
+    "node": ">=20.11.0"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @claude-team/tui dev",
+    "tui": "pnpm --filter @claude-team/tui dev",
+    "web": "pnpm --filter @claude-team/web dev",
+    "build": "pnpm -r --filter './packages/*' build && pnpm --filter @claude-team/web build",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc -b --pretty",
+    "smoke": "tsx scripts/smoke-claude.ts",
+    "lint": "eslint . --ext .ts,.tsx",
+    "lint:fix": "eslint . --ext .ts,.tsx --fix",
+    "format": "prettier --write \"**/*.{ts,tsx,json,md}\"",
+    "clean": "rm -rf node_modules **/node_modules **/dist **/*.tsbuildinfo"
+  },
+  "devDependencies": {
+    "@claude-team/core": "workspace:*",
+    "@claude-team/persistence": "workspace:*",
+    "@claude-team/provider": "workspace:*",
+    "@types/node": "^22.10.5",
+    "@typescript-eslint/eslint-plugin": "^8.20.0",
+    "@typescript-eslint/parser": "^8.20.0",
+    "eslint": "^8.57.1",
+    "eslint-plugin-react-hooks": "^5.1.0",
+    "prettier": "^3.4.2",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3",
+    "vitest": "^2.1.8"
+  }
+}

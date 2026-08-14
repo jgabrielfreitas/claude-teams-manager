@@ -1,0 +1,16 @@
+node_modules/
+dist/
+build/
+coverage/
+*.tsbuildinfo
+.DS_Store
+*.log
+
+# Local application data (teams, runs, history) — never committed.
+.claude-team/
+*.db
+*.db-wal
+*.db-shm
+
+.env
+.env.local

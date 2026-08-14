@@ -1,0 +1,35 @@
+{
+  "name": "@claude-team/tui",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Terminal interface for Claude Team — multi-agent teams driven from your shell.",
+  "bin": {
+    "claude-team": "./bin/claude-team.js",
+    "agents": "./bin/claude-team.js"
+  },
+  "files": [
+    "bin",
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "dev": "tsx src/main.tsx",
+    "start": "node bin/claude-team.js",
+    "typecheck": "tsc -b"
+  },
+  "dependencies": {
+    "@claude-team/core": "workspace:*",
+    "@claude-team/domain": "workspace:*",
+    "@claude-team/ui-shared": "workspace:*",
+    "ink": "^6.8.0",
+    "ink-spinner": "^5.0.0",
+    "ink-text-input": "^6.0.0",
+    "react": "^19.2.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3"
+  }
+}
