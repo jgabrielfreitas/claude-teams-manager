@@ -1,16 +1,44 @@
+# A single root ignore file is enough: these patterns match at any depth, so
+# they already cover every package under packages/ and apps/.
+
+# Dependencies
 node_modules/
+.pnpm-store/
+
+# Build output and caches
 dist/
 build/
 coverage/
 *.tsbuildinfo
-.DS_Store
-*.log
+.vite/
+*.tgz
 
-# Local application data (teams, runs, history) — never committed.
+# Local application data — teams, runs, message history, the instance lock.
+# Never committed: it is per-machine state, and runs can contain private
+# workspace content. Share a team with `claude-team team export` instead.
 .claude-team/
+instance.lock
 *.db
 *.db-wal
 *.db-shm
 
+# Secrets
 .env
-.env.local
+.env.*
+!.env.example
+
+# Logs
+*.log
+npm-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
