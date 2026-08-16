@@ -9,8 +9,15 @@ import { AGENT_STATUS_UI, EFFORT_UI, RUN_STATUS_UI, formatRelative, truncate } f
  * resolve the reference the user typed, call the core, print the result.
  */
 
+/**
+ * Pads a cell to `width`, always leaving at least one column as the gap to the
+ * next one — a value that exactly filled the column used to run into its
+ * neighbour ("SEO / Keyword ResearcherSonnet").
+ */
 function pad(value: string, width: number): string {
-  return value.length > width ? `${value.slice(0, Math.max(0, width - 1))}…` : value.padEnd(width);
+  const max = Math.max(1, width - 1);
+  const text = value.length > max ? `${value.slice(0, Math.max(0, max - 1))}…` : value;
+  return text.padEnd(width);
 }
 
 export async function teamList(core: AppCore): Promise<number> {
@@ -67,7 +74,7 @@ export async function teamImport(core: AppCore, file: string): Promise<number> {
   process.stdout.write(`Imported "${team.name}" (${team.id}) with ${team.agents.length} agent(s).\n`);
   for (const agent of team.agents) {
     process.stdout.write(
-      `  ${agent.handle.padEnd(16)}${agent.role.padEnd(24)}${shortModelLabel(agent.model)}/${agent.effort}\n`,
+      `  ${pad(agent.handle, 16)}${pad(agent.role, 24)}${shortModelLabel(agent.model)}/${agent.effort}\n`,
     );
   }
   for (const warning of warnings) process.stdout.write(`  warning: ${warning}\n`);
