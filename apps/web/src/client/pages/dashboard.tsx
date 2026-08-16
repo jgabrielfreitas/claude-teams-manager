@@ -7,6 +7,7 @@ import { LiveRunProgress, Timeline } from '../components/run-views';
 import { Async, Card, EmptyState, Stat, StatusPill } from '../components/ui';
 import { useResource } from '../hooks/use-resource';
 import { runStatusUi, toneClass } from '../lib/tone';
+import { useQuestions } from '../state/questions';
 
 /**
  * The overview screen. Everything on it comes from one core call
@@ -18,6 +19,7 @@ export function DashboardPage() {
     [],
     (event) => event.type !== 'notice',
   );
+  const { open: openQuestion } = useQuestions();
 
   return (
     <>
@@ -41,28 +43,85 @@ export function DashboardPage() {
           <>
             <div className="grid cols-4">
               <Stat label="Teams" value={data.counts.teams} />
-              <Stat label="Agents" value={data.counts.agents} hint={`${data.counts.runningAgents} busy`} />
-              <Stat label="Runs" value={data.counts.runs} hint={`${data.activeRuns.length} active`} />
               <Stat
-                label="Approvals"
-                value={data.pendingApprovals.length}
-                hint={data.pendingApprovals.length ? 'waiting on you' : 'nothing waiting'}
+                label="Agents"
+                value={data.counts.agents}
+                hint={`${data.counts.runningAgents} busy`}
+              />
+              <Stat
+                label="Runs"
+                value={data.counts.runs}
+                hint={`${data.activeRuns.length} active`}
+              />
+              <Stat
+                label="Waiting on you"
+                value={data.pendingApprovals.length + data.pendingQuestions.length}
+                hint={
+                  data.pendingApprovals.length + data.pendingQuestions.length
+                    ? `${data.pendingApprovals.length} approval(s) · ${data.pendingQuestions.length} question(s)`
+                    : 'nothing waiting'
+                }
               />
             </div>
 
-            {data.pendingApprovals.length > 0 && (
-              <Card title="Pending approvals">
-                <div className="col">
-                  {data.pendingApprovals.map((approval) => (
-                    <div key={approval.id} className="spread">
-                      <span className="truncate">{approval.summary}</span>
-                      <Link className="btn btn-sm" to={`/runs/${approval.runId}`}>
-                        Open run
-                      </Link>
+            {(data.pendingApprovals.length > 0 || data.pendingQuestions.length > 0) && (
+              <div
+                className={`grid${
+                  data.pendingApprovals.length > 0 && data.pendingQuestions.length > 0
+                    ? ' cols-2'
+                    : ''
+                }`}
+              >
+                {data.pendingApprovals.length > 0 && (
+                  <Card title="Pending approvals">
+                    <p className="tiny muted" style={{ marginBottom: 8 }}>
+                      An agent wants permission to do something.
+                    </p>
+                    <div className="col">
+                      {data.pendingApprovals.map((approval) => (
+                        <div key={approval.id} className="spread">
+                          <span className="truncate">{approval.summary}</span>
+                          <Link className="btn btn-sm" to={`/runs/${approval.runId}`}>
+                            Open run
+                          </Link>
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
-              </Card>
+                  </Card>
+                )}
+
+                {data.pendingQuestions.length > 0 && (
+                  <Card title="Questions for you" className="tone-info">
+                    <p className="tiny muted" style={{ marginBottom: 8 }}>
+                      An agent is blocked until you decide — a permission will not unblock it.
+                    </p>
+                    <div className="col" style={{ gap: 10 }}>
+                      {data.pendingQuestions.map((question) => (
+                        <div key={question.id} className="spread">
+                          <span className="col" style={{ gap: 2, minWidth: 0 }}>
+                            <span className="strong truncate">{question.header || 'Question'}</span>
+                            <span className="tiny muted truncate">
+                              {truncate(question.question, 90)}
+                            </span>
+                          </span>
+                          <span className="row right" style={{ gap: 6 }}>
+                            <button
+                              type="button"
+                              className="btn btn-sm btn-primary"
+                              onClick={() => openQuestion(question.id)}
+                            >
+                              Answer
+                            </button>
+                            <Link className="btn btn-sm" to={`/runs/${question.runId}`}>
+                              Open run
+                            </Link>
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </Card>
+                )}
+              </div>
             )}
 
             <div className="grid main-aside">
@@ -126,7 +185,11 @@ export function DashboardPage() {
                     <div className="list">
                       {data.teams.map((team) => (
                         <div key={team.id} className="list-item">
-                          <Link className="col" style={{ gap: 2, minWidth: 160 }} to={`/teams/${team.id}`}>
+                          <Link
+                            className="col"
+                            style={{ gap: 2, minWidth: 160 }}
+                            to={`/teams/${team.id}`}
+                          >
                             <span className="strong truncate">{team.name}</span>
                             <span className="tiny muted truncate">
                               {team.agents.length} agents

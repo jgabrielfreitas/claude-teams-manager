@@ -578,6 +578,28 @@ export async function runAction(ui: Ui, action: 'pause' | 'resume' | 'cancel' | 
 }
 
 /* ------------------------------------------------------------------ *
+ * Questions
+ * ------------------------------------------------------------------ */
+
+/**
+ * Puts the question prompt back on screen.
+ *
+ * The list comes from the core rather than from what this process happens to
+ * have seen: a question raised before the TUI attached, or one dismissed with
+ * `esc`, is still an agent waiting for an answer. `listPendingQuestions` is
+ * also the only thing that knows which of them are genuinely still answerable.
+ */
+export async function openPendingQuestion(ui: Ui): Promise<void> {
+  const pending = await ui.guard(() => ui.core.listPendingQuestions());
+  if (!pending) return;
+  if (pending.length === 0) {
+    ui.notify('No agent is waiting on a question.', 'info');
+    return;
+  }
+  ui.reopenQuestion(pending);
+}
+
+/* ------------------------------------------------------------------ *
  * Transcripts
  * ------------------------------------------------------------------ */
 
@@ -780,6 +802,12 @@ export async function executeCommand(id: string, ui: Ui): Promise<void> {
       return;
     }
 
+    case 'question.open':
+      return openPendingQuestion(ui);
+
+    case 'app.autoMode':
+      ui.toggleAutoMode();
+      return;
     case 'app.search':
       ui.setOverlay('search');
       return;

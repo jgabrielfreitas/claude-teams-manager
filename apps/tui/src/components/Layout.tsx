@@ -35,6 +35,21 @@ export function Header({ columns }: { columns: number }): React.JSX.Element {
         );
       })}
       <Box flexGrow={1} />
+      {/*
+        Auto mode grants every permission and answers every question on the
+        human's behalf. It is risky enough that it stays visible for as long as
+        it is on, rather than only being discoverable in Settings.
+      */}
+      {ui.autoMode ? (
+        <Text color={toneColor('danger')} bold>
+          {compact ? ' ⚡AUTO ' : ' ⚡ AUTO MODE — never stops to ask '}
+        </Text>
+      ) : null}
+      {ui.questions.length > 0 ? (
+        <Text color={toneColor('info')} bold>
+          {` ? ${ui.questions.length} question(s) `}
+        </Text>
+      ) : null}
       {ui.approvals.length > 0 ? (
         <Text color={toneColor('warning')} bold>
           {` ⚠ ${ui.approvals.length} approval(s) `}
@@ -58,8 +73,17 @@ export function StatusBar(): React.JSX.Element | null {
   );
 }
 
-export function Footer({ extra }: { extra?: Array<{ key: string; label: string }> }): React.JSX.Element {
-  const hints = [...KEY_LEGEND, ...(extra ?? [])];
+export function Footer({
+  lead,
+  extra,
+}: {
+  /** Hints shown *before* the shared legend, for something that cannot wait. */
+  lead?: Array<{ key: string; label: string }>;
+  extra?: Array<{ key: string; label: string }>;
+}): React.JSX.Element {
+  // The legend is long enough to be clipped on a normal terminal, so anything
+  // urgent goes in front of it rather than off the end of the line.
+  const hints = [...(lead ?? []), ...KEY_LEGEND, ...(extra ?? [])];
   return (
     <Box>
       <Text wrap="truncate-end">

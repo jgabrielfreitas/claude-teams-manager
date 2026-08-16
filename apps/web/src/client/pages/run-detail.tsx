@@ -28,6 +28,8 @@ import {
 import { useResource } from '../hooks/use-resource';
 import { runStatusUi } from '../lib/tone';
 import { eventTouchesRun } from '@claude-team/protocol';
+import type { QuestionDto } from '@claude-team/protocol';
+import { useQuestions, useRunQuestions } from '../state/questions';
 import { useDeclareSelection } from '../state/selection';
 import { useAction } from '../state/toasts';
 
@@ -142,8 +144,7 @@ export function RunDetailPage() {
                   <StatusPill status={ui} />
                   <span className="page-sub">
                     created {formatRelative(data.run.createdAt)}
-                    {data.run.startedAt &&
-                      ` · ran for ${formatDuration(runDurationMs(data.run))}`}
+                    {data.run.startedAt && ` · ran for ${formatDuration(runDurationMs(data.run))}`}
                   </span>
                   {data.isActive && <span className="tiny muted">live</span>}
                 </div>
@@ -207,6 +208,8 @@ export function RunDetailPage() {
                     {data.run.error && <div className="error-box">{data.run.error}</div>}
                   </div>
                 </Card>
+
+                <PendingQuestions runId={runId} agents={data.agents} />
 
                 <div className="tabs" role="tablist">
                   {(
@@ -281,6 +284,23 @@ export function RunDetailPage() {
                   </div>
                 </Card>
 
+                {data.questions.length > 0 && (
+                  <Card title="Questions">
+                    <p className="tiny muted" style={{ marginBottom: 10 }}>
+                      What the agents asked you, and what they were told.
+                    </p>
+                    <div className="col" style={{ gap: 12 }}>
+                      {data.questions.map((question) => (
+                        <AnsweredQuestion
+                          key={question.id}
+                          question={question}
+                          agents={data.agents}
+                        />
+                      ))}
+                    </div>
+                  </Card>
+                )}
+
                 {data.approvals.length > 0 && (
                   <Card title="Approvals">
                     <div className="col" style={{ gap: 8 }}>
@@ -310,7 +330,9 @@ export function RunDetailPage() {
                     </div>
                     <div className="spread">
                       <span className="muted">Budget cost cap</span>
-                      <span>{data.run.budget?.maxCostUsd ? formatUsd(data.run.budget.maxCostUsd) : '—'}</span>
+                      <span>
+                        {data.run.budget?.maxCostUsd ? formatUsd(data.run.budget.maxCostUsd) : '—'}
+                      </span>
                     </div>
                     {data.run.retryOfRunId && (
                       <div className="spread">
@@ -345,6 +367,108 @@ export function RunDetailPage() {
         );
       }}
     </Async>
+  );
+}
+
+/* ------------------------------------------------------------------ *
+ * Questions
+ * ------------------------------------------------------------------ */
+
+const QUESTION_STATUS_TONE: Record<QuestionDto['status'], string> = {
+  pending: 'tone-info',
+  answered: 'tone-success',
+  expired: 'tone-warning',
+  skipped: 'tone-muted',
+};
+
+/**
+ * Questions this run is currently parked on.
+ *
+ * The list comes from the questions centre rather than from the run payload, so
+ * it only ever offers questions that are genuinely still answerable — and the
+ * dialog it opens is the same one that interrupts from anywhere else.
+ */
+function PendingQuestions({ runId, agents }: { runId: string; agents: RunDetailDto['agents'] }) {
+  const pending = useRunQuestions(runId);
+  const { open } = useQuestions();
+
+  if (pending.length === 0) return null;
+
+  return (
+    <Card
+      className="tone-info question-spotlight"
+      title={
+        <div className="col" style={{ gap: 2 }}>
+          <h2 style={{ fontSize: 15 }}>
+            {pending.length === 1
+              ? 'An agent is waiting on you'
+              : `${pending.length} agents are waiting on you`}
+          </h2>
+          <span className="tiny muted">
+            This is a decision, not a permission — the run cannot continue until you answer.
+          </span>
+        </div>
+      }
+    >
+      <div className="col" style={{ gap: 10 }}>
+        {pending.map((question) => (
+          <div key={question.id} className="spread">
+            <span className="col" style={{ gap: 2, minWidth: 0 }}>
+              <span className="strong truncate">{question.header || 'Question'}</span>
+              <span className="small muted truncate">{question.question}</span>
+              <span className="tiny muted">
+                asked by {agents.find((a) => a.id === question.agentId)?.handle ?? question.agentId}
+                {question.options.length > 0 &&
+                  ` · ${question.options.length} option${question.options.length === 1 ? '' : 's'}`}
+              </span>
+            </span>
+            <button
+              type="button"
+              className="btn btn-primary right"
+              onClick={() => open(question.id)}
+            >
+              Answer
+            </button>
+          </div>
+        ))}
+      </div>
+    </Card>
+  );
+}
+
+/** One question in the run's history, with whatever answer it ended up with. */
+function AnsweredQuestion({
+  question,
+  agents,
+}: {
+  question: QuestionDto;
+  agents: RunDetailDto['agents'];
+}) {
+  return (
+    <div
+      className={`col question-record ${QUESTION_STATUS_TONE[question.status]}`}
+      style={{ gap: 4 }}
+    >
+      <span className="small strong">{question.header || 'Question'}</span>
+      <span className="small">{question.question}</span>
+      {question.options.length > 0 && (
+        <span className="tiny muted">
+          offered: {question.options.map((option) => option.label).join(' · ')}
+        </span>
+      )}
+      {question.answer ? (
+        <span className="small question-answer">{question.answer}</span>
+      ) : (
+        <span className="tiny muted">no answer yet</span>
+      )}
+      <span className="tiny muted">
+        {question.status}
+        {question.answeredBy ? ` · by ${question.answeredBy}` : ''}
+        {' · asked by '}
+        {agents.find((a) => a.id === question.agentId)?.handle ?? question.agentId}
+        {` · ${formatRelative(question.createdAt)}`}
+      </span>
+    </div>
   );
 }
 

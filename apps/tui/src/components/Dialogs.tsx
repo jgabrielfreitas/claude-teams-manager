@@ -69,6 +69,44 @@ function DialogBody({
  * Text
  * ------------------------------------------------------------------ */
 
+/**
+ * The single typed-answer field of this app.
+ *
+ * Exported because the question prompt needs exactly the same behaviour — the
+ * same prefix, the same placeholder, and above all the same rule about focus:
+ * `ink-text-input` must never be focused when the terminal cannot deliver
+ * keystrokes, or a headless run would sit on a field nobody can fill.
+ */
+export function PromptInput({
+  value,
+  onChange,
+  onSubmit,
+  label = '›',
+  placeholder = '',
+  active,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  onSubmit: (value: string) => void;
+  label?: string;
+  placeholder?: string;
+  active: boolean;
+}): React.JSX.Element {
+  const typing = useRawMode();
+  return (
+    <Box>
+      <Text color={UI.accent}>{label} </Text>
+      <TextInput
+        value={value}
+        onChange={onChange}
+        onSubmit={onSubmit}
+        placeholder={placeholder}
+        focus={active && typing}
+      />
+    </Box>
+  );
+}
+
 function TextDialog({
   request,
   active,
@@ -79,7 +117,6 @@ function TextDialog({
   onResolve: (value: unknown) => void;
 }): React.JSX.Element {
   const [value, setValue] = useState(request.initial ?? '');
-  const typing = useRawMode();
 
   useKeys((_input, key) => {
     if (key.escape) onResolve(undefined);
@@ -88,16 +125,14 @@ function TextDialog({
   return (
     <Box flexDirection="column">
       {request.help ? <Dim>{request.help}</Dim> : null}
-      <Box>
-        <Text color={UI.accent}>{request.label ?? '›'} </Text>
-        <TextInput
-          value={value}
-          onChange={setValue}
-          onSubmit={(submitted) => onResolve(submitted)}
-          placeholder={request.placeholder ?? ''}
-          focus={active && typing}
-        />
-      </Box>
+      <PromptInput
+        value={value}
+        onChange={setValue}
+        onSubmit={(submitted) => onResolve(submitted)}
+        label={request.label ?? '›'}
+        placeholder={request.placeholder ?? ''}
+        active={active}
+      />
       <KeyHints hints={[{ key: '↵', label: 'confirm' }, { key: 'esc', label: 'cancel' }]} />
     </Box>
   );

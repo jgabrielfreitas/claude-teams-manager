@@ -9,6 +9,7 @@ import {
   totalTokens,
   type Agent,
   type AgentMessage,
+  type AgentQuestion,
   type Run,
   type RunEvent,
   type Task,
@@ -34,6 +35,8 @@ export interface TranscriptInput {
   tasks: Task[];
   messages: AgentMessage[];
   events: RunEvent[];
+  /** Questions the agents put to the human, and what was answered. */
+  questions?: AgentQuestion[];
 }
 
 export interface TranscriptOptions {
@@ -214,6 +217,29 @@ function markdownTranscript(input: TranscriptInput, options: TranscriptOptions):
     }
   }
 
+  if (input.questions && input.questions.length > 0) {
+    out.push('## Decisions you were asked for');
+    out.push('');
+    for (const q of input.questions) {
+      out.push(`### ${q.header ?? 'Question'}`);
+      out.push('');
+      out.push(`*${handleOf(input, q.agentId)} asked:* ${q.question}`);
+      if (q.options.length > 0) {
+        out.push('');
+        out.push(
+          `Offered: ${q.options.map((o) => (o.description ? `**${o.label}** (${o.description})` : `**${o.label}**`)).join(' · ')}`,
+        );
+      }
+      out.push('');
+      out.push(
+        q.answer
+          ? `**Answer** (${q.answeredBy ?? 'unknown'}, ${q.status}): ${q.answer}`
+          : `**Unanswered** (${q.status})`,
+      );
+      out.push('');
+    }
+  }
+
   if (options.includeMessages !== false && input.messages.length > 0) {
     out.push('## Messages');
     out.push('');
@@ -308,6 +334,17 @@ function textTranscript(input: TranscriptInput, options: TranscriptOptions): str
     out.push('');
   }
 
+  if (input.questions && input.questions.length > 0) {
+    out.push('DECISIONS YOU WERE ASKED FOR');
+    for (const q of input.questions) {
+      out.push(`  [${q.status}] ${q.header ?? 'Question'} — asked by ${handleOf(input, q.agentId)}`);
+      out.push(`      ${q.question}`);
+      if (q.options.length > 0) out.push(`      offered: ${q.options.map((o) => o.label).join(' | ')}`);
+      for (const line of (q.answer ?? '(unanswered)').split('\n')) out.push(`      ${line}`);
+    }
+    out.push('');
+  }
+
   if (options.includeMessages !== false && input.messages.length > 0) {
     out.push('MESSAGES');
     for (const message of [...input.messages].sort((a, b) => a.seq - b.seq)) {
@@ -366,6 +403,7 @@ function jsonTranscript(input: TranscriptInput, options: TranscriptOptions): str
         effort: a.effort,
       })),
       tasks: input.tasks,
+      questions: input.questions ?? [],
       messages: options.includeMessages === false ? [] : input.messages,
       events: visibleEvents(input, options),
       perAgent: perAgentTotals(input).map((t) => ({

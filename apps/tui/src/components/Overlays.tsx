@@ -263,6 +263,24 @@ function HelpOverlay(): React.JSX.Element {
           <Text color={UI.dim}>tab{'    '}switch panel</Text>
           <Text color={UI.dim}>↑↓ jk{' '} move</Text>
           <Text color={UI.dim}>esc{'    '}close / back</Text>
+          {/*
+            Spelled out rather than left to the key list: dismissing a question
+            and answering it are very different, and an approval is neither.
+          */}
+          <Text bold>When an agent asks</Text>
+          <Text color={UI.dim}>↑↓{'     '}choose</Text>
+          <Text color={UI.dim}>1-9{'    '}pick directly</Text>
+          <Text color={UI.dim}>space{'  '}toggle (multi)</Text>
+          <Text color={UI.dim}>t{'      '}type an answer</Text>
+          <Text color={UI.dim}>↵{'      '}send answer</Text>
+          <Text color={UI.dim}>esc{'    '}hide, unanswered</Text>
+          <Text color={UI.dim}>Q{'      '}bring it back</Text>
+          <Text bold>Auto mode</Text>
+          <Text color={UI.dim}>A{'      '}toggle</Text>
+          <Text color={UI.dim}>{'  '}grants permissions,</Text>
+          <Text color={UI.dim}>{'  '}and tells the agent</Text>
+          <Text color={UI.dim}>{'  '}to decide alone and</Text>
+          <Text color={UI.dim}>{'  '}state its assumption</Text>
         </Box>
         <Box flexDirection="column" flexGrow={1}>
           {[...groups.entries()].map(([group, lines]) => (

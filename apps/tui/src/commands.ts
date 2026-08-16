@@ -39,21 +39,44 @@ export const TUI_ONLY_COMMANDS: CommandDefinition[] = [
     key: 'e',
     keywords: ['save', 'download', 'file', 'markdown', 'json'],
   },
+  {
+    // Not scoped to the selected run: whichever agent is blocked, the prompt
+    // has to be reachable — including from a section that has no run selected.
+    id: 'question.open',
+    title: 'Answer Pending Question',
+    hint: 'reopen the prompt an agent is waiting on',
+    group: 'Run',
+    key: 'Q',
+    keywords: ['question', 'ask', 'answer', 'prompt', 'blocked', 'waiting'],
+  },
+  {
+    id: 'app.autoMode',
+    title: 'Toggle Auto Mode',
+    hint: 'approve everything and answer questions automatically',
+    group: 'App',
+    key: 'A',
+    keywords: ['auto', 'unattended', 'automatic', 'approve', 'answer', 'dangerous'],
+  },
 ];
 
 const TUI_IDS = new Set(TUI_ONLY_COMMANDS.map((command) => command.id));
 
-/** The shared catalogue with the terminal-only commands next to their group. */
+/** The shared catalogue with each terminal-only command next to its group. */
 export const ALL_COMMANDS: CommandDefinition[] = (() => {
-  const lastRun = COMMANDS.map((command) => command.group).lastIndexOf('Run');
-  if (lastRun === -1) return [...COMMANDS, ...TUI_ONLY_COMMANDS];
-  return [...COMMANDS.slice(0, lastRun + 1), ...TUI_ONLY_COMMANDS, ...COMMANDS.slice(lastRun + 1)];
+  const merged = [...COMMANDS];
+  for (const command of TUI_ONLY_COMMANDS) {
+    const last = merged.map((entry) => entry.group).lastIndexOf(command.group);
+    if (last === -1) merged.push(command);
+    else merged.splice(last + 1, 0, command);
+  }
+  return merged;
 })();
 
 /**
  * Commands offered for the current selection. The shared rule decides for the
- * shared commands; the terminal-only ones all need a run, which is the single
- * extra condition applied here.
+ * shared commands; the terminal-only ones are filtered by the same `requires`
+ * field, so one that needs nothing (answering a question, flipping auto mode)
+ * is always offered.
  */
 export function allAvailableCommands(context: {
   team?: boolean;
@@ -61,7 +84,17 @@ export function allAvailableCommands(context: {
   run?: boolean;
 }): CommandDefinition[] {
   const shared = new Set(availableCommands(context).map((command) => command.id));
-  return ALL_COMMANDS.filter((command) =>
-    TUI_IDS.has(command.id) ? Boolean(context.run) : shared.has(command.id),
-  );
+  return ALL_COMMANDS.filter((command) => {
+    if (!TUI_IDS.has(command.id)) return shared.has(command.id);
+    switch (command.requires) {
+      case 'team':
+        return Boolean(context.team);
+      case 'agent':
+        return Boolean(context.agent);
+      case 'run':
+        return Boolean(context.run);
+      default:
+        return true;
+    }
+  });
 }

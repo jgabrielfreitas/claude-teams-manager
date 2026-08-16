@@ -112,6 +112,10 @@ export function eventTone(type: RunEventType, level: 'debug' | 'info' | 'warn' |
     case 'message_sent':
     case 'message_received':
       return 'info';
+    case 'question_asked':
+      return 'warning';
+    case 'question_answered':
+      return 'success';
     default:
       return 'neutral';
   }

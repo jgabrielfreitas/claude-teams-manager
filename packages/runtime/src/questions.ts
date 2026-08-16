@@ -112,7 +112,7 @@ export class QuestionGate {
     await this.storage.questions.create(question);
     await this.recorder.record({
       runId: this.runId,
-      type: 'approval_requested',
+      type: 'question_asked',
       agentId: input.agentId,
       taskId: input.taskId,
       level: 'warn',
@@ -175,7 +175,7 @@ export class QuestionGate {
 
     await this.recorder.record({
       runId: this.runId,
-      type: 'approval_resolved',
+      type: 'question_answered',
       agentId: entry.question.agentId,
       taskId: entry.question.taskId,
       level: status === 'answered' ? 'info' : 'warn',

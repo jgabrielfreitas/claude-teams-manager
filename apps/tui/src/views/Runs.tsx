@@ -148,7 +148,7 @@ function RunDetail({
   narrow: boolean;
 }): React.JSX.Element {
   const ui = useUi();
-  const revision = ui.rev(['runs', 'events', 'messages']);
+  const revision = ui.rev(['runs', 'events', 'messages', 'questions']);
   const { data, error, loading } = useLoader(() => ui.core.getRunDetail(runId), [runId, revision]);
 
   const events = data?.events ?? [];
@@ -173,7 +173,9 @@ function RunDetail({
   if (error) return <ErrorLine message={error} />;
   if (!data) return loading ? <Loading label="Loading run" /> : <EmptyState title="Nothing to show." />;
 
-  const { run, team, agents, tasks, progress } = data;
+  const { run, team, agents, tasks, progress, questions } = data;
+  const pendingQuestions = questions.filter((question) => question.status === 'pending');
+  const settledQuestions = questions.filter((question) => question.status !== 'pending');
   const status = RUN_STATUS_UI[run.status];
   const handleOf = (agentId?: string) => agents.find((a) => a.id === agentId)?.handle;
   const titleOf = (taskId: string) => tasks.find((t) => t.id === taskId)?.title ?? taskId;
@@ -204,6 +206,30 @@ function RunDetail({
         <Text color={toneColor('danger')} wrap="truncate-end">
           {truncate(run.error, 200)}
         </Text>
+      ) : null}
+
+      {pendingQuestions.length > 0 ? (
+        <Box flexDirection="column" marginTop={1}>
+          <Text bold color={toneColor('info')} wrap="truncate-end">
+            {`? ${pendingQuestions.length} question(s) waiting on you — press Q to answer`}
+          </Text>
+          {pendingQuestions.slice(0, 3).map((question) => (
+            <Box key={question.id} paddingLeft={2} flexDirection="column">
+              <Text color={toneColor('info')} wrap="truncate-end">
+                {question.header?.trim() ? `${truncate(question.header, 24)} — ` : ''}
+                {truncate(question.question, 80)}
+              </Text>
+              <Dim>
+                {`  ${handleOf(question.agentId) ?? question.agentId} is blocked · ${
+                  question.options.length > 0
+                    ? `${question.options.map((option) => option.label).join(' / ')}`
+                    : 'free-text answer'
+                }`}
+              </Dim>
+            </Box>
+          ))}
+          <MoreRow count={pendingQuestions.length - 3} />
+        </Box>
       ) : null}
 
       <Box marginTop={1}>
@@ -263,6 +289,30 @@ function RunDetail({
       )}
       {tasks.length > 8 ? <MoreRow count={tasks.length - 8} /> : null}
 
+      {settledQuestions.length > 0 ? (
+        <Box flexDirection="column">
+          <SectionTitle>Questions already answered</SectionTitle>
+          {settledQuestions.slice(0, 4).map((question) => (
+            <Box key={question.id} flexDirection="column">
+              <Text wrap="truncate-end">
+                <Text color={toneColor(question.status === 'answered' ? 'success' : 'muted')}>
+                  {question.status === 'answered' ? '✓ ' : '⊘ '}
+                </Text>
+                {question.header?.trim() ? `${truncate(question.header, 24)} — ` : ''}
+                {truncate(question.question, 60)}
+              </Text>
+              <Box paddingLeft={2}>
+                <Text wrap="truncate-end">
+                  <Text color={UI.dim}>{`${question.answeredBy ?? question.status}: `}</Text>
+                  {truncate(question.answer ?? '—', 70)}
+                </Text>
+              </Box>
+            </Box>
+          ))}
+          <MoreRow count={settledQuestions.length - 4} />
+        </Box>
+      ) : null}
+
       <Box marginTop={narrow ? 0 : 1}>
         <Text bold color={UI.accent}>
           {replay ? `Replay  ${events.length ? cursor + 1 : 0}/${events.length}` : 'Timeline (live)'}
@@ -289,6 +339,7 @@ function RunDetail({
             { key: 'e', label: 'export transcript' },
             { key: 'm', label: 'message agent' },
             { key: 'r', label: 'new run' },
+            ...(pendingQuestions.length > 0 ? [{ key: 'Q', label: 'answer question' }] : []),
           ]}
         />
       </Box>

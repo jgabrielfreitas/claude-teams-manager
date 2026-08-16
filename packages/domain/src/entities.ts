@@ -347,6 +347,8 @@ export const RUN_EVENT_TYPES = [
   'tool_result',
   'approval_requested',
   'approval_resolved',
+  'question_asked',
+  'question_answered',
   'budget_warning',
   'budget_exceeded',
   'error',

@@ -12,6 +12,8 @@ import { useApp } from 'ink';
 import type { AppCore } from '@claude-team/core';
 import type { AppEvent, TranscriptFormat } from '@claude-team/core';
 import type {
+  AgentQuestion,
+  AppSettings,
   ApprovalDecision,
   ApprovalRequest,
   ToolGroupDescriptor,
@@ -26,8 +28,14 @@ import { errorMessage } from './lib/hooks.js';
 
 export type Overlay = 'palette' | 'search' | 'help' | null;
 
-/** Which layer currently owns the keyboard. */
-export type Lock = 'view' | 'overlay' | 'dialog' | 'approval';
+/**
+ * Which layer currently owns the keyboard.
+ *
+ * `approval` and `question` are separate on purpose: one grants a permission,
+ * the other delivers an answer the agent then works from. They are never the
+ * same prompt.
+ */
+export type Lock = 'view' | 'overlay' | 'dialog' | 'approval' | 'question';
 
 export interface Selection {
   teamId?: string;
@@ -35,7 +43,23 @@ export interface Selection {
   runId?: string;
 }
 
-export type RevKey = 'teams' | 'agents' | 'runs' | 'events' | 'messages' | 'settings' | 'approvals';
+export type RevKey =
+  | 'teams'
+  | 'agents'
+  | 'runs'
+  | 'events'
+  | 'messages'
+  | 'settings'
+  | 'approvals'
+  | 'questions';
+
+/** What the human sends back to a blocked agent. */
+export interface QuestionAnswer {
+  /** Labels picked from the offered options. */
+  selected?: string[];
+  /** Free-text answer. */
+  text?: string;
+}
 
 export interface SelectItem {
   value: string;
@@ -181,6 +205,24 @@ export interface Ui {
   approvals: ApprovalRequest[];
   decideApproval: (approvalId: string, decision: ApprovalDecision) => void;
 
+  /** Questions still waiting for a human answer, oldest first. */
+  questions: AgentQuestion[];
+  /** The one the prompt is showing; undefined once it has been dismissed. */
+  activeQuestion?: AgentQuestion;
+  /** Sends the answer. The core validates it; failures reach the status line. */
+  answerQuestion: (questionId: string, answer: QuestionAnswer) => void;
+  /** Closes the prompt *without* answering — the question stays pending. */
+  dismissQuestion: (questionId: string) => void;
+  /** Brings a dismissed prompt back, optionally reseeded from the core. */
+  reopenQuestion: (pending?: AgentQuestion[]) => void;
+
+  /** Last known settings, refreshed from `settings.changed`. */
+  settings?: AppSettings;
+  /** True when approvals *and* questions are both handled automatically. */
+  autoMode: boolean;
+  setAutoMode: (value: boolean) => void;
+  toggleAutoMode: () => void;
+
   dialogs: Dialogs;
   dialogQueue: DialogRequest[];
   resolveDialog: (id: number, value: unknown) => void;
@@ -219,6 +261,8 @@ function keysForEvent(event: AppEvent): RevKey[] {
       return ['messages', 'events'];
     case 'approval':
       return ['approvals', 'events'];
+    case 'question':
+      return ['questions', 'events'];
     case 'settings.changed':
       return ['settings'];
     case 'notice':
@@ -236,6 +280,7 @@ const ZERO_REVS: Record<RevKey, number> = {
   messages: 0,
   settings: 0,
   approvals: 0,
+  questions: 0,
 };
 
 /* ------------------------------------------------------------------ *
@@ -276,6 +321,11 @@ export function UiProvider({
   const [status, setStatus] = useState<StatusLine | undefined>();
   const [revs, setRevs] = useState<Record<RevKey, number>>(ZERO_REVS);
   const [approvals, setApprovals] = useState<ApprovalRequest[]>([]);
+  const [questions, setQuestions] = useState<AgentQuestion[]>([]);
+  // Questions whose prompt the user closed with `esc`. They are still pending
+  // — this is only about what is on screen.
+  const [dismissed, setDismissed] = useState<string[]>([]);
+  const [settings, setSettings] = useState<AppSettings | undefined>();
   const [dialogQueue, setDialogQueue] = useState<DialogRequest[]>([]);
 
   const statusTimer = useRef<NodeJS.Timeout | undefined>(undefined);
@@ -343,6 +393,19 @@ export function UiProvider({
           return event.approval.status === 'pending' ? [...without, event.approval] : without;
         });
       }
+      // An agent is parked on this one until a human answers — never coalesce
+      // it either, and never let it share the approval queue.
+      if (event.type === 'question') {
+        const { question } = event;
+        setQuestions((prev) => {
+          const without = prev.filter((q) => q.id !== question.id);
+          return question.status === 'pending' ? [...without, question] : without;
+        });
+        // Answered, expired or auto-answered: nothing left to reopen.
+        if (question.status !== 'pending') {
+          setDismissed((prev) => prev.filter((id) => id !== question.id));
+        }
+      }
       if (event.type === 'notice') {
         setStatus({
           message: event.message,
@@ -358,6 +421,10 @@ export function UiProvider({
       .listPendingApprovals()
       .then((list) => setApprovals((prev) => (prev.length === 0 ? list : prev)))
       .catch(() => undefined);
+    void core
+      .listPendingQuestions()
+      .then((list) => setQuestions((prev) => (prev.length === 0 ? list : prev)))
+      .catch(() => undefined);
 
     return () => {
       unsubscribe();
@@ -366,6 +433,21 @@ export function UiProvider({
   }, [core]);
 
   const rev = useCallback((keys: RevKey[]) => keys.reduce((sum, key) => sum + revs[key], 0), [revs]);
+
+  /* -------- settings: the header indicator reads this -------- */
+
+  useEffect(() => {
+    let cancelled = false;
+    void core
+      .getSettings()
+      .then((next) => {
+        if (!cancelled) setSettings(next);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [core, revs.settings]);
 
   const decideApproval = useCallback(
     (approvalId: string, decision: ApprovalDecision) => {
@@ -379,6 +461,77 @@ export function UiProvider({
     },
     [core, guard, dispatch],
   );
+
+  /* -------- questions -------- */
+
+  /**
+   * The core owns every rule about what a valid answer is (a label that was
+   * offered, one choice unless the question allows several, nothing empty), so
+   * the call is simply made and any refusal becomes a status line. The queue
+   * only drops the question once the core has accepted the answer.
+   */
+  const answerQuestion = useCallback(
+    (questionId: string, answer: QuestionAnswer) => {
+      dispatch(async () => {
+        const result = await guard(
+          () =>
+            core.answerQuestion({
+              questionId,
+              selected: answer.selected,
+              text: answer.text,
+              answeredBy: 'user',
+            }),
+          'Answer delivered — the agent is no longer blocked.',
+        );
+        if (result) {
+          setQuestions((prev) => prev.filter((q) => q.id !== questionId));
+          setDismissed((prev) => prev.filter((id) => id !== questionId));
+        }
+      });
+    },
+    [core, guard, dispatch],
+  );
+
+  const dismissQuestion = useCallback(
+    (questionId: string) => {
+      setDismissed((prev) => (prev.includes(questionId) ? prev : [...prev, questionId]));
+      notify('Dismissed without answering — the agent is still waiting. Press Q to answer it.', 'warning');
+    },
+    [notify],
+  );
+
+  const reopenQuestion = useCallback(
+    (pending?: AgentQuestion[]) => {
+      if (pending) setQuestions(pending);
+      setDismissed([]);
+    },
+    [],
+  );
+
+  /* -------- auto mode -------- */
+
+  const setAutoMode = useCallback(
+    (value: boolean) => {
+      dispatch(() =>
+        guard(
+          () => core.updateSettings({ autoApproveAll: value, autoAnswerQuestions: value }),
+          value
+            ? 'Auto mode ON — the run never stops to ask: permissions are granted automatically and a question is answered with "decide it yourself and state the assumption".'
+            : 'Auto mode OFF — approvals and questions block the run again until you answer them.',
+        ),
+      );
+    },
+    [core, guard, dispatch],
+  );
+
+  const toggleAutoMode = useCallback(() => {
+    // Read the current value through the core rather than from local state, so
+    // the toggle cannot act on a stale snapshot.
+    dispatch(async () => {
+      const current = await core.getSettings();
+      setAutoMode(!(current.autoApproveAll && current.autoAnswerQuestions));
+    });
+  }, [core, dispatch, setAutoMode]);
 
   /* -------- dialogs -------- */
 
@@ -443,14 +596,19 @@ export function UiProvider({
     app.exit();
   }, [app]);
 
+  const activeQuestion = questions.find((question) => !dismissed.includes(question.id));
+  const autoMode = Boolean(settings?.autoApproveAll && settings?.autoAnswerQuestions);
+
   const lock: Lock =
     approvals.length > 0
       ? 'approval'
-      : dialogQueue.length > 0
-        ? 'dialog'
-        : overlay
-          ? 'overlay'
-          : 'view';
+      : activeQuestion
+        ? 'question'
+        : dialogQueue.length > 0
+          ? 'dialog'
+          : overlay
+            ? 'overlay'
+            : 'view';
 
   const value = useMemo<Ui>(
     () => ({
@@ -482,6 +640,15 @@ export function UiProvider({
       rev,
       approvals,
       decideApproval,
+      questions,
+      activeQuestion,
+      answerQuestion,
+      dismissQuestion,
+      reopenQuestion,
+      settings,
+      autoMode,
+      setAutoMode,
+      toggleAutoMode,
       dialogs,
       dialogQueue,
       resolveDialog,
@@ -510,6 +677,15 @@ export function UiProvider({
       rev,
       approvals,
       decideApproval,
+      questions,
+      activeQuestion,
+      answerQuestion,
+      dismissQuestion,
+      reopenQuestion,
+      settings,
+      autoMode,
+      setAutoMode,
+      toggleAutoMode,
       dialogs,
       dialogQueue,
       resolveDialog,

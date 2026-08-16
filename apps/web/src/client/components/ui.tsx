@@ -159,6 +159,7 @@ export function Modal({
   footer,
   wide,
   dismissable = true,
+  className,
 }: {
   title: ReactNode;
   onClose: () => void;
@@ -166,6 +167,8 @@ export function Modal({
   footer?: ReactNode;
   wide?: boolean;
   dismissable?: boolean;
+  /** Lets a dialog carry its own skin — an approval must not look like a question. */
+  className?: string;
 }) {
   const ref = useRef<HTMLDivElement>(null);
 
@@ -213,7 +216,12 @@ export function Modal({
         if (dismissable && event.target === event.currentTarget) onClose();
       }}
     >
-      <div className={`modal${wide ? ' wide' : ''}`} role="dialog" aria-modal="true" ref={ref}>
+      <div
+        className={`modal${wide ? ' wide' : ''}${className ? ` ${className}` : ''}`}
+        role="dialog"
+        aria-modal="true"
+        ref={ref}
+      >
         <header className="modal-head">
           {typeof title === 'string' ? <h2 style={{ fontSize: 15 }}>{title}</h2> : title}
           {dismissable && (

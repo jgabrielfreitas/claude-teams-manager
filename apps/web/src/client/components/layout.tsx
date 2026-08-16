@@ -2,6 +2,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import { SECTIONS, formatRelative, type Tone } from '@claude-team/ui-shared';
 import { ApprovalCenter } from '../state/approvals';
+import { AutoModeBanner, AutoModeToggle } from '../state/auto-mode';
+import { QuestionsProvider, useQuestions } from '../state/questions';
 import { useRealtime, type ConnectionStatus } from '../state/realtime';
 import { toneClass } from '../lib/tone';
 import { CommandPalette } from './command-palette';
@@ -46,63 +48,89 @@ export function Layout() {
   const connection = CONNECTION_UI[realtime.status];
 
   return (
-    <div className="app">
-      <aside className="sidebar">
-        <div className="brand">
-          <span className="brand-mark">CT</span>
-          <span className="brand-text col" style={{ gap: 0 }}>
-            <span className="brand-name">Claude Team</span>
-            <span className="brand-sub">multi-agent teams</span>
-          </span>
-        </div>
+    <QuestionsProvider>
+      <div className="app">
+        <aside className="sidebar">
+          <div className="brand">
+            <span className="brand-mark">CT</span>
+            <span className="brand-text col" style={{ gap: 0 }}>
+              <span className="brand-name">Claude Team</span>
+              <span className="brand-sub">multi-agent teams</span>
+            </span>
+          </div>
 
-        <nav className="nav" aria-label="Sections">
-          {SECTIONS.map((section) => (
-            <NavLink
-              key={section.id}
-              to={section.path}
-              className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}
+          <nav className="nav" aria-label="Sections">
+            {SECTIONS.map((section) => (
+              <NavLink
+                key={section.id}
+                to={section.path}
+                className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}
+              >
+                {section.label}
+                <span className="nav-key">{section.key}</span>
+              </NavLink>
+            ))}
+          </nav>
+
+          <div className="sidebar-foot">
+            <button
+              type="button"
+              className={`conn ${toneClass(connection.tone)}`}
+              onClick={realtime.reconnect}
+              title={
+                realtime.lastEventAt
+                  ? `Last event ${formatRelative(realtime.lastEventAt)} · ${realtime.eventCount} received`
+                  : 'Server-sent events'
+              }
             >
-              {section.label}
-              <span className="nav-key">{section.key}</span>
-            </NavLink>
-          ))}
-        </nav>
+              <span className={`dot${connection.busy ? ' busy' : ''}`} />
+              <span className="conn-label">{connection.label}</span>
+            </button>
+          </div>
+        </aside>
 
-        <div className="sidebar-foot">
-          <button
-            type="button"
-            className={`conn ${toneClass(connection.tone)}`}
-            onClick={realtime.reconnect}
-            title={
-              realtime.lastEventAt
-                ? `Last event ${formatRelative(realtime.lastEventAt)} · ${realtime.eventCount} received`
-                : 'Server-sent events'
-            }
-          >
-            <span className={`dot${connection.busy ? ' busy' : ''}`} />
-            <span className="conn-label">{connection.label}</span>
-          </button>
+        <div className="main">
+          <header className="topbar">
+            <button type="button" className="search" onClick={openPalette}>
+              <span aria-hidden>⌕</span>
+              <span className="truncate">Search or run a command</span>
+              <span className="kbd right">⌘K</span>
+            </button>
+            <span className="spacer" />
+            <PendingQuestionsButton />
+            <AutoModeToggle />
+          </header>
+
+          <main className="content">
+            <AutoModeBanner />
+            <Outlet />
+          </main>
         </div>
-      </aside>
 
-      <div className="main">
-        <header className="topbar">
-          <button type="button" className="search" onClick={openPalette}>
-            <span aria-hidden>⌕</span>
-            <span className="truncate">Search or run a command</span>
-            <span className="kbd right">⌘K</span>
-          </button>
-          <span className="spacer" />
-        </header>
-
-        <main className="content">
-          <Outlet />
-        </main>
+        <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
+        <ApprovalCenter />
       </div>
+    </QuestionsProvider>
+  );
+}
 
-      <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
-      <ApprovalCenter />
-    </div>
+/**
+ * The way back to a question the human pressed Esc on. Questions are not
+ * dismissible work: the agent is still parked until one of them is answered.
+ */
+function PendingQuestionsButton() {
+  const { pending, open } = useQuestions();
+  if (pending.length === 0) return null;
+
+  return (
+    <button
+      type="button"
+      className="pending-questions"
+      onClick={() => open()}
+      title="An agent is waiting on your answer"
+    >
+      <span className="dot busy" />
+      {pending.length} question{pending.length === 1 ? '' : 's'} waiting
+    </button>
   );
 }

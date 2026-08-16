@@ -162,6 +162,16 @@ export function TaskRow({
 
 export function EventRow({ event, handle }: { event: RunEvent; handle?: string }): React.JSX.Element {
   const tone = eventTone(event.type, event.level);
+  // The runtime records a question on the same event type as an approval and
+  // tells them apart with `kind`. The timeline has to do the same, or the one
+  // thing the human must not confuse with a permission is labelled as one.
+  const label =
+    event.data?.kind === 'question' &&
+    (event.type === 'approval_requested' || event.type === 'approval_resolved')
+      ? event.type === 'approval_requested'
+        ? 'question'
+        : 'answered'
+      : event.type.replace(/_/g, ' ').slice(0, 10);
   return (
     <Box>
       <Box width={9} flexShrink={0}>
@@ -169,7 +179,7 @@ export function EventRow({ event, handle }: { event: RunEvent; handle?: string }
       </Box>
       <Box width={11} flexShrink={0}>
         <Text color={toneColor(tone)} wrap="truncate-end">
-          {handle ?? event.type.replace(/_/g, ' ').slice(0, 10)}
+          {handle ?? label}
         </Text>
       </Box>
       <Box flexGrow={1} overflow="hidden">

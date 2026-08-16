@@ -12,7 +12,7 @@ import { EventRow, ProgressLine } from '../components/rows.js';
 
 export function DashboardView({ height, columns, narrow }: ViewProps): React.JSX.Element {
   const ui = useUi();
-  const revision = ui.rev(['teams', 'agents', 'runs', 'events', 'approvals', 'settings']);
+  const revision = ui.rev(['teams', 'agents', 'runs', 'events', 'approvals', 'questions', 'settings']);
 
   // One call: the core returns per-run progress with the dashboard.
   const { data: dashboard, error, loading } = useLoader(() => ui.core.getDashboard(), [revision]);
@@ -110,7 +110,7 @@ export function DashboardView({ height, columns, narrow }: ViewProps): React.JSX
         </Text>
       </Box>
 
-      {dashboard.pendingApprovals.length > 0 ? (
+      {dashboard.pendingApprovals.length + dashboard.pendingQuestions.length > 0 ? (
         <Box flexDirection="column">
           <SectionTitle>Waiting for you</SectionTitle>
           {dashboard.pendingApprovals.slice(0, 3).map((approval) => (
@@ -118,6 +118,19 @@ export function DashboardView({ height, columns, narrow }: ViewProps): React.JSX
               ⚠ {truncate(approval.summary, 70)}
             </Text>
           ))}
+          {/*
+            Next to the approvals, never mixed into them: a question needs an
+            answer, not a permission, and the two are answered differently.
+          */}
+          {dashboard.pendingQuestions.slice(0, 3).map((question) => (
+            <Text key={question.id} color={toneColor('info')} wrap="truncate-end">
+              ? {question.header?.trim() ? `${truncate(question.header, 24)} — ` : ''}
+              {truncate(question.question, 60)}
+            </Text>
+          ))}
+          {dashboard.pendingQuestions.length > 0 ? (
+            <Dim>{`  press Q to answer (${dashboard.pendingQuestions.length} waiting)`}</Dim>
+          ) : null}
         </Box>
       ) : null}
 

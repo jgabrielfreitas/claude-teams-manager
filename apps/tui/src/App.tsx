@@ -5,6 +5,7 @@ import { toneColor, UI } from './theme.js';
 import { useKeys, useTerminalSize } from './lib/hooks.js';
 import { useUi } from './store.js';
 import { ApprovalModal } from './components/ApprovalModal.js';
+import { QuestionPrompt } from './components/QuestionPrompt.js';
 import { DialogHost } from './components/Dialogs.js';
 import { OverlayHost } from './components/Overlays.js';
 import { Footer, Header, StatusBar } from './components/Layout.js';
@@ -17,6 +18,7 @@ import { MessagesView } from './views/Messages.js';
 import { ActivityView } from './views/Activity.js';
 import { SettingsView } from './views/Settings.js';
 import { Onboarding } from './views/Onboarding.js';
+import { openPendingQuestion } from './actions.js';
 
 /**
  * Keys the Runs section adds to the shared legend. They are listed here rather
@@ -27,6 +29,15 @@ const RUN_KEYS = [
   { key: 'f', label: 'full screen' },
   { key: 'y', label: 'copy transcript' },
   { key: 'e', label: 'export transcript' },
+];
+
+/**
+ * Global keys that work in every section, including the full-screen run view —
+ * a question is answered and auto mode is flipped without navigating away.
+ */
+const GLOBAL_KEYS = [
+  { key: 'Q', label: 'answer question' },
+  { key: 'A', label: 'auto mode' },
 ];
 
 /** The shell: chrome, global keys, and whichever section is on screen. */
@@ -46,6 +57,16 @@ export function App(): React.JSX.Element {
       }
       if (input === '?') {
         ui.setOverlay('help');
+        return;
+      }
+      // Before the full-screen guard below: an agent blocked on a question, and
+      // the switch that stops it blocking at all, must be reachable mid-run.
+      if (input === 'Q') {
+        ui.dispatch(() => openPendingQuestion(ui));
+        return;
+      }
+      if (input === 'A') {
+        ui.toggleAutoMode();
         return;
       }
       // The full-screen run view owns everything else while it is up: `q` and
@@ -92,6 +113,7 @@ export function App(): React.JSX.Element {
         <OverlayHost />
         <DialogHost />
         <ApprovalModal />
+        <QuestionPrompt />
         <StatusBar />
       </Box>
     );
@@ -130,8 +152,19 @@ export function App(): React.JSX.Element {
       <OverlayHost />
       <DialogHost />
       <ApprovalModal />
+      <QuestionPrompt />
       <StatusBar />
-      {size.short ? null : <Footer extra={ui.section === 'runs' ? RUN_KEYS : undefined} />}
+      {size.short ? null : (
+        <Footer
+          lead={[
+            // An agent parked on a question is the one thing that must not be
+            // clipped off the end of the legend.
+            ...(ui.questions.length > 0 ? [{ key: 'Q', label: 'answer question' }] : []),
+            ...(ui.autoMode ? [{ key: 'A', label: 'auto mode ON' }] : []),
+          ]}
+          extra={[...(ui.section === 'runs' ? RUN_KEYS : []), ...GLOBAL_KEYS]}
+        />
+      )}
     </Box>
   );
 }

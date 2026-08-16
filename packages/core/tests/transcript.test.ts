@@ -168,6 +168,58 @@ describe('run transcript', () => {
     await app.shutdown();
   }, 30_000);
 
+  it('records the decisions the human was asked for, and what they answered', async () => {
+    const provider = new FakeAgentProvider({
+      behaviors: {
+        assistant: [
+          {
+            kind: 'tool',
+            tool: 'ask_user',
+            args: {
+              header: 'Niche',
+              question: 'Which niche should the page target?',
+              options: [
+                { label: 'Weddings', description: 'High ticket, seasonal' },
+                { label: 'Home office', description: 'Steady, competitive' },
+              ],
+            },
+          },
+          { kind: 'tool', tool: 'finish', args: { summary: 'Planned around the chosen niche.' } },
+        ],
+      } as never,
+    });
+    const app = new AppCore({ storage: new InMemoryStorage(), provider });
+    await app.init();
+    app.subscribe((event) => {
+      if (event.type === 'question' && event.question.status === 'pending') {
+        void app.answerQuestion({ questionId: event.question.id, selected: ['Weddings'] });
+      }
+    });
+
+    const team = await app.createTeamFromPreset({ presetId: 'solo' });
+    const run = await app.startRun({ teamId: team.id, objective: 'Plan a longtail page' });
+    await app.waitForRun(run.id);
+
+    const markdown = (await app.exportRun(run.id, { format: 'markdown' })).content;
+    expect(markdown).toContain('## Decisions you were asked for');
+    expect(markdown).toContain('### Niche');
+    expect(markdown).toContain('Which niche should the page target?');
+    expect(markdown).toContain('High ticket, seasonal');
+    expect(markdown).toContain('Chosen: Weddings');
+    // The timeline says it plainly too, rather than calling it an approval.
+    expect(markdown).toContain('is asking you');
+    expect(markdown).not.toMatch(/approval/i);
+
+    const text = (await app.exportRun(run.id, { format: 'text' })).content;
+    expect(text).toContain('DECISIONS YOU WERE ASKED FOR');
+
+    const json = JSON.parse((await app.exportRun(run.id, { format: 'json' })).content);
+    expect(json.questions).toHaveLength(1);
+    expect(json.questions[0].status).toBe('answered');
+
+    await app.shutdown();
+  }, 30_000);
+
   it('exports a run that failed, including the failure', async () => {
     const provider = new FakeAgentProvider({
       behaviors: { assistant: () => [{ kind: 'fail', message: 'provider exploded' }] } as never,

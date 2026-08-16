@@ -57,7 +57,7 @@ export function RunFullScreen({ height, columns, narrow }: RunFullScreenProps): 
   /** Live runs stick to the newest row until the user scrolls up. */
   const [follow, setFollow] = useState(true);
 
-  // A different run is a different document: start at the bottom again.
+  // Another run, or another tab, is another document: start at its end again.
   useEffect(() => {
     setOffset(0);
     setFollow(true);

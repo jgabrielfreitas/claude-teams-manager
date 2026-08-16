@@ -159,11 +159,57 @@ const ROWS: Row[] = [
     },
   },
   {
+    id: 'autoMode',
+    label: 'Auto mode',
+    value: (s) =>
+      s.autoApproveAll && s.autoAnswerQuestions
+        ? 'ON — the run never stops to ask'
+        : s.autoApproveAll || s.autoAnswerQuestions
+          ? `partly on (${[
+              s.autoApproveAll ? 'approvals' : undefined,
+              s.autoAnswerQuestions ? 'questions' : undefined,
+            ]
+              .filter(Boolean)
+              .join(' + ')})`
+          : 'off — you are asked',
+    help:
+      'One switch for both gates below. On, the run never stops to ask: every permission is granted automatically, and an agent\'s question is answered with an instruction to decide for itself and state the assumption it made. Nothing waits for you, and nothing asks twice.',
+    edit: async (ui, s) => {
+      const value = await ui.dialogs.select({
+        title: 'Auto mode',
+        help: 'On: permissions granted automatically, questions answered with "decide it yourself and state the assumption".',
+        items: [
+          { value: 'true', label: 'ON — never stop to ask', tone: 'danger' },
+          { value: 'false', label: 'off — ask me', tone: 'success' },
+        ],
+        initialValue: String(s.autoApproveAll && s.autoAnswerQuestions),
+      });
+      if (value === undefined) return;
+      ui.setAutoMode(value === 'true');
+    },
+  },
+  {
     id: 'autoApproveAll',
-    label: 'Auto-approve everything',
+    label: '· grant permissions',
     value: (s) => (s.autoApproveAll ? 'yes (dangerous)' : 'no'),
-    help: 'When enabled, no approval prompt is ever raised.',
+    help: 'Half of auto mode, on its own: no approval prompt is ever raised. Leave the question switch off if you want permissions automatic but an agent\'s question still to reach you.',
     edit: (ui, s) => editBoolean(ui, 'Auto-approve everything', s.autoApproveAll, 'autoApproveAll'),
+  },
+  {
+    id: 'autoAnswerQuestions',
+    label: '· answer questions',
+    value: (s) => (s.autoAnswerQuestions ? 'yes (agent decides alone)' : 'no (it waits for you)'),
+    help: 'The other half of auto mode: an agent asking the human is told to decide for itself and state the assumption, instead of blocking until someone answers.',
+    edit: (ui, s) =>
+      editBoolean(ui, 'Auto-answer agent questions', s.autoAnswerQuestions, 'autoAnswerQuestions'),
+  },
+  {
+    id: 'questionTimeoutMs',
+    label: '· question timeout',
+    value: (s) => formatDuration(s.questionTimeoutMs),
+    help: 'How long a question waits for a human before it is answered automatically anyway (milliseconds). A blocked agent is never left waiting for ever.',
+    edit: (ui, s) =>
+      editNumber(ui, 'Question timeout (ms)', s.questionTimeoutMs, (v) => ({ questionTimeoutMs: v })),
   },
   {
     id: 'requireApprovalFor',

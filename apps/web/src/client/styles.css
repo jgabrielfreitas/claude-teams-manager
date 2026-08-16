@@ -1305,6 +1305,238 @@ a.agent-card:hover {
   word-break: break-word;
 }
 
+/* --------------------------------------------------------------------------
+   Question modal — deliberately unlike the approval modal
+   --------------------------------------------------------------------------
+   An approval is a guardrail (amber, monospace, "may I?"). A question is a
+   decision the human owns: informational blue, prose, and choices you pick
+   from. They must never be mistaken for one another.
+   -------------------------------------------------------------------------- */
+
+.modal-question {
+  --tone: var(--tone-info);
+  border-color: color-mix(in srgb, var(--tone-info) 45%, var(--border-strong));
+  border-top: 3px solid var(--tone-info);
+}
+
+.modal-question .modal-head {
+  background: color-mix(in srgb, var(--tone-info) 8%, transparent);
+}
+
+.question-kicker {
+  font-size: 10px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: var(--tone-info);
+}
+
+.question-blocked {
+  --tone: var(--tone-warning);
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  border: 1px solid color-mix(in srgb, var(--tone-warning) 35%, transparent);
+  background: color-mix(in srgb, var(--tone-warning) 9%, transparent);
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.question-blocked .dot { margin-top: 5px; flex: none; }
+
+.question-text {
+  font-size: 16px;
+  line-height: 1.5;
+  color: var(--text);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.question-options {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  border: none;
+  padding: 0;
+  margin: 0;
+}
+
+.question-options legend { padding: 0 0 6px; }
+
+.question-option {
+  display: flex;
+  gap: 11px;
+  align-items: flex-start;
+  min-width: 0;
+  padding: 11px 13px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  cursor: pointer;
+  transition: border-color 120ms var(--ease), background 120ms var(--ease);
+}
+
+.question-option:hover { border-color: var(--border-strong); }
+
+.question-option:focus-within {
+  border-color: var(--tone-info);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--tone-info) 22%, transparent);
+}
+
+.question-option.picked {
+  border-color: var(--tone-info);
+  background: color-mix(in srgb, var(--tone-info) 12%, transparent);
+}
+
+.question-option input {
+  margin-top: 3px;
+  flex: none;
+  width: 15px;
+  height: 15px;
+  accent-color: var(--tone-info);
+}
+
+.question-option > span { overflow-wrap: anywhere; }
+
+/* A run parked on a question, and the questions it already answered. */
+.question-spotlight { border-color: color-mix(in srgb, var(--tone-info) 45%, var(--border)); }
+
+.question-record {
+  padding-left: 10px;
+  border-left: 2px solid var(--tone, var(--border-strong));
+}
+
+.question-answer {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--text-dim);
+  padding: 6px 8px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+
+/* --------------------------------------------------------------------------
+   Auto mode — one switch, two settings, and a standing warning while it is on
+   -------------------------------------------------------------------------- */
+
+.auto-mode {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  flex: none;
+  padding: 6px 12px 6px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text-dim);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 120ms var(--ease), background 120ms var(--ease), color 120ms var(--ease);
+}
+
+.auto-mode:hover { border-color: var(--border-strong); color: var(--text); }
+
+.auto-mode-switch {
+  position: relative;
+  width: 30px;
+  height: 17px;
+  flex: none;
+  border-radius: 999px;
+  background: var(--surface-3);
+  border: 1px solid var(--border-strong);
+  transition: background 140ms var(--ease);
+}
+
+.auto-mode-knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  transition: transform 140ms var(--ease), background 140ms var(--ease);
+}
+
+.auto-mode-state {
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.auto-mode-partial {
+  border-color: color-mix(in srgb, var(--tone-warning) 45%, transparent);
+  color: var(--tone-warning);
+}
+
+.auto-mode-partial .auto-mode-knob { transform: translateX(6px); background: var(--tone-warning); }
+.auto-mode-partial .auto-mode-state { color: var(--tone-warning); }
+
+.auto-mode-on {
+  border-color: var(--tone-danger);
+  background: color-mix(in srgb, var(--tone-danger) 14%, transparent);
+  color: var(--tone-danger);
+}
+
+.auto-mode-on .auto-mode-switch {
+  background: color-mix(in srgb, var(--tone-danger) 55%, transparent);
+  border-color: var(--tone-danger);
+}
+
+.auto-mode-on .auto-mode-knob { transform: translateX(13px); background: #fff; }
+.auto-mode-on .auto-mode-state { color: var(--tone-danger); }
+
+/* The same control, full width, in Settings. */
+.auto-mode-block {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 12px;
+  padding: 13px 15px;
+  border-radius: var(--radius);
+  text-align: left;
+}
+
+.auto-mode-banner {
+  --tone: var(--tone-danger);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 18px;
+  padding: 10px 14px;
+  border-radius: var(--radius);
+  border: 1px solid var(--tone-danger);
+  background: color-mix(in srgb, var(--tone-danger) 12%, transparent);
+  color: var(--text-dim);
+  font-size: 12.5px;
+}
+
+.auto-mode-banner .btn { flex: none; }
+
+/* The way back to a question that was pressed Esc on. */
+.pending-questions {
+  --tone: var(--tone-info);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--tone-info);
+  background: color-mix(in srgb, var(--tone-info) 12%, transparent);
+  color: var(--tone-info);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.pending-questions:hover { background: color-mix(in srgb, var(--tone-info) 20%, transparent); }
+
 /* Export controls (copy / download / preview) */
 .export-controls {
   display: flex;
@@ -1472,6 +1704,25 @@ a.agent-card:hover {
 }
 
 @media (max-width: 560px) {
+  /* The chrome keeps the two things that must stay reachable mid-run: the
+     questions waiting on you, and the auto-mode switch. */
+  .topbar { gap: 8px; padding: 0 12px; }
+  .topbar .search { min-width: 0; flex: 1 1 40px; }
+  .topbar .search .truncate,
+  .topbar .search .kbd { display: none; }
+  .auto-mode { gap: 6px; padding: 5px 9px 5px 6px; }
+  .auto-mode-label { display: none; }
+  .pending-questions { padding: 5px 9px; }
+  .auto-mode-banner { flex-wrap: wrap; }
+
+  .modal-backdrop { padding: 5vh 8px 8px; }
+  .modal-head,
+  .modal-body,
+  .modal-foot { padding-left: 12px; padding-right: 12px; }
+  .modal-foot { flex-wrap: wrap; }
+  .question-text { font-size: 15px; }
+  .question-option { padding: 10px; }
+
   .fullscreen-head { padding: 8px 10px; }
   .fullscreen-totals,
   .fullscreen-progress { display: none; }
