@@ -118,6 +118,7 @@ export const searchSchema = z.object({
 export const updateSettingsSchema = z.object({
   onboardingCompleted: z.boolean().optional(),
   defaultWorkspace: z.string().max(1024).nullable().optional(),
+  teamsDir: z.string().max(1024).nullable().optional(),
   defaultModel: z.string().max(200).optional(),
   defaultOrchestratorModel: z.string().max(200).optional(),
   defaultEffort: z.enum(AGENT_EFFORTS).optional(),

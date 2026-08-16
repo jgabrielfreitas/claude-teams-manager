@@ -636,6 +636,7 @@ const SETTINGS_COLUMNS = [
   'web_port',
   'theme',
   'telemetry',
+  'teams_dir',
   'updated_at',
 ] as const;
 
@@ -657,6 +658,7 @@ function settingsToRow(s: AppSettings): BindRow {
     web_port: s.webPort,
     theme: s.theme,
     telemetry: bBool(s.telemetry),
+    teams_dir: bStr(s.teamsDir),
     updated_at: s.updatedAt.getTime(),
   };
 }
@@ -678,6 +680,7 @@ function rowToSettings(r: Row): AppSettings {
     webPort: int(r['web_port']),
     theme: str(r['theme']) as AppSettings['theme'],
     telemetry: bool(r['telemetry']),
+    teamsDir: optStr(r['teams_dir']),
     updatedAt: date(r['updated_at']),
   };
 }

@@ -423,6 +423,11 @@ export interface AppSettings {
   onboardingCompleted: boolean;
   /** Default workspace suggested for new teams. */
   defaultWorkspace?: string;
+  /**
+   * Where the YAML mirror of every team is written. Unset means "next to the
+   * database", i.e. `<claude-team home>/teams`.
+   */
+  teamsDir?: string;
   defaultModel: string;
   defaultOrchestratorModel: string;
   defaultEffort: AgentEffort;

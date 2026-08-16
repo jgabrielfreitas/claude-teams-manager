@@ -3,10 +3,9 @@ import type BetterSqlite3 from 'better-sqlite3';
 /**
  * Schema migrations.
  *
- * This is a greenfield project, so there is exactly one migration: the initial
- * schema. The *runner*, however, is real — it records what it applied in
- * `_migrations`, skips anything already applied, and wraps each migration in a
- * transaction — so the second migration can simply be appended to the array.
+ * Append-only: each migration keeps its id forever, and the runner records what
+ * it applied in `_migrations`, skips anything already applied, and wraps each
+ * one in a transaction. Never edit a migration that has shipped — add another.
  */
 
 export type Database = BetterSqlite3.Database;
@@ -217,6 +216,16 @@ export const migrations: Migration[] = [
     name: '001_initial',
     up(db) {
       db.exec(INITIAL_SCHEMA);
+    },
+  },
+  {
+    id: 2,
+    name: '002_settings_teams_dir',
+    // Where the YAML mirror of each team is written. Nullable: an empty value
+    // means "derive it from the database location", which is what every
+    // existing installation should keep doing.
+    up(db) {
+      db.exec('ALTER TABLE settings ADD COLUMN teams_dir TEXT');
     },
   },
 ];

@@ -53,7 +53,15 @@ import {
   type ProviderHealth,
 } from '@claude-team/provider';
 import { RunManager, DEFAULT_ENGINE_OPTIONS, type RunEngineOptions } from '@claude-team/runtime';
+import { join } from 'node:path';
 import { EventBus, type AppEvent, type AppEventListener } from './event-bus.js';
+import {
+  defaultTeamsDir,
+  pruneRenamedFiles,
+  removeTeamFile,
+  teamFileName,
+  writeTeamFile,
+} from './team-files.js';
 import { acquireInstanceLock, type InstanceInfo, type InstanceLock } from './instance-lock.js';
 import { search, type SearchHit } from './search.js';
 import { describeGit, expandPath, inspectWorkspace, type WorkspaceInfo } from './workspace.js';
@@ -177,6 +185,9 @@ export class AppCore {
       // Only the owning process may decide that a `running` row is orphaned.
       await this.runs.recoverInterrupted();
       await this.expireOrphanedApprovals();
+      // Bring the YAML mirror up to date, including for databases that predate
+      // it and for files deleted while the app was closed.
+      await this.syncAllTeamFiles();
     } else {
       this.emit({
         type: 'notice',
@@ -246,10 +257,18 @@ export class AppCore {
         parsed.defaultWorkspace === null
           ? undefined
           : (parsed.defaultWorkspace ?? current.defaultWorkspace),
+      teamsDir: parsed.teamsDir === null ? undefined : (parsed.teamsDir ?? current.teamsDir),
       updatedAt: new Date(),
     };
+
+    const previousTeamsDir = this.teamsDirectory();
     this.settingsCache = await this.deps.storage.settings.save(next);
     this.applySettingsToEngine(this.settingsCache);
+
+    // Pointing the mirror somewhere new must populate it, or the folder would
+    // stay empty until the next time a team happened to change.
+    if (this.teamsDirectory() !== previousTeamsDir) await this.syncAllTeamFiles();
+
     this.emit({ type: 'settings.changed' });
     return this.settingsCache;
   }
@@ -444,6 +463,73 @@ export class AppCore {
     return { ...team, agents };
   }
 
+  /* ---------------- Team files ---------------- */
+
+  /**
+   * Directory holding the YAML mirror of every team, or undefined when the
+   * store has no location on disk (in-memory, i.e. tests).
+   */
+  teamsDirectory(): string | undefined {
+    const configured = this.settingsCache?.teamsDir?.trim();
+    if (configured) return expandPath(configured);
+    return defaultTeamsDir(this.deps.storage.describe().location);
+  }
+
+  /** Absolute path of a team's file, for showing in the UI. */
+  async teamFilePath(teamId: string): Promise<string | undefined> {
+    const dir = this.teamsDirectory();
+    if (!dir) return undefined;
+    const team = await this.deps.storage.teams.get(teamId);
+    return team ? join(dir, teamFileName(team)) : undefined;
+  }
+
+  /**
+   * Rewrites a team's YAML file. Called after anything that changes the team's
+   * shape, so the folder is always an accurate, importable snapshot.
+   *
+   * A failure here must never fail the operation the user actually asked for:
+   * the database is the source of truth and the file is a convenience, so a
+   * read-only disk downgrades to a notice.
+   */
+  private async syncTeamFile(teamId: string): Promise<void> {
+    const dir = this.teamsDirectory();
+    if (!dir) return;
+    try {
+      const team = await this.deps.storage.teams.get(teamId);
+      if (!team) return;
+      const agents = await this.deps.storage.agents.listByTeam(teamId);
+      pruneRenamedFiles(dir, team);
+      writeTeamFile(dir, team, agents);
+    } catch (err) {
+      this.emit({
+        type: 'notice',
+        level: 'warn',
+        message: `Could not write the team file in ${dir}: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      });
+    }
+  }
+
+  private async forgetTeamFile(team: Team): Promise<void> {
+    const dir = this.teamsDirectory();
+    if (!dir) return;
+    try {
+      removeTeamFile(dir, team);
+    } catch {
+      /* the mirror is a convenience; never fail a delete over it */
+    }
+  }
+
+  /** Rewrites every team file. Used on startup and after changing the folder. */
+  async syncAllTeamFiles(): Promise<number> {
+    const dir = this.teamsDirectory();
+    if (!dir) return 0;
+    const teams = await this.deps.storage.teams.list();
+    for (const team of teams) await this.syncTeamFile(team.id);
+    return teams.length;
+  }
+
   async createTeam(input: unknown): Promise<TeamWithAgents> {
     const parsed = createTeamSchema.parse(input);
     const team = createTeamEntity({
@@ -451,6 +537,7 @@ export class AppCore {
       workspace: parsed.workspace ? expandPath(parsed.workspace) : undefined,
     });
     await this.deps.storage.teams.create(team);
+    await this.syncTeamFile(team.id);
     this.emit({ type: 'team.changed', teamId: team.id });
     return { ...team, agents: [] };
   }
@@ -521,6 +608,7 @@ export class AppCore {
       updatedAt: new Date(),
     };
     await this.deps.storage.teams.update(updated);
+    await this.syncTeamFile(team.id);
 
     this.emit({ type: 'team.changed', teamId: team.id });
     return { ...updated, agents };
@@ -550,6 +638,7 @@ export class AppCore {
       updatedAt: new Date(),
     };
     await this.deps.storage.teams.update(next);
+    await this.syncTeamFile(teamId);
     this.emit({ type: 'team.changed', teamId });
     return { ...next, agents };
   }
@@ -563,6 +652,7 @@ export class AppCore {
       throw illegalState('This team has a run in progress. Cancel it before deleting the team.');
     }
     await this.deps.storage.teams.delete(teamId);
+    await this.forgetTeamFile(team);
     this.emit({ type: 'team.changed', teamId: null });
   }
 
@@ -600,6 +690,7 @@ export class AppCore {
       updatedAt: new Date(),
     };
     await this.deps.storage.teams.update(updated);
+    await this.syncTeamFile(team.id);
     this.emit({ type: 'team.changed', teamId: team.id });
     return { ...updated, agents };
   }
@@ -650,6 +741,7 @@ export class AppCore {
       updatedAt: new Date(),
     };
     await this.deps.storage.teams.update(updated);
+    await this.syncTeamFile(team.id);
     this.emit({ type: 'team.changed', teamId: team.id });
 
     return { team: { ...updated, agents }, warnings: parsed.warnings };
@@ -702,6 +794,7 @@ export class AppCore {
       this.emit({ type: 'team.changed', teamId: team.id });
     }
 
+    await this.syncTeamFile(agent.teamId);
     this.emit({ type: 'agent.changed', agentId: agent.id, teamId: agent.teamId });
     return agent;
   }
@@ -796,6 +889,7 @@ export class AppCore {
       }
     }
 
+    await this.syncTeamFile(agent.teamId);
     this.emit({ type: 'agent.changed', agentId, teamId: agent.teamId });
     return next;
   }
@@ -847,6 +941,7 @@ export class AppCore {
       });
     }
 
+    await this.syncTeamFile(agent.teamId);
     this.emit({ type: 'agent.changed', agentId: null, teamId: agent.teamId });
   }
 
@@ -856,6 +951,7 @@ export class AppCore {
     const copy = cloneAgentEntity(source, overrides, siblings.map((a) => a.handle));
     copy.order = siblings.length;
     await this.deps.storage.agents.create(copy);
+    await this.syncTeamFile(copy.teamId);
     this.emit({ type: 'agent.changed', agentId: copy.id, teamId: copy.teamId });
     return copy;
   }

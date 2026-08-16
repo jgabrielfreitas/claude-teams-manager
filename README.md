@@ -285,7 +285,23 @@ agents:
     effort: high
 ```
 
-The full schema is documented in [`docs/team-format.md`](docs/team-format.md).
+**You never have to export by hand.** Every team is mirrored to disk as YAML the
+moment anything about it changes — created, renamed, an agent added, a model or
+effort switched:
+
+```
+~/.claude-team/teams/engineering.tm_a1b2c3d4.yaml
+```
+
+Commit that folder, or point it at your project repo in Settings. The mirror is
+one-way: editing a file there changes nothing until you `team import` it, so an
+editor auto-save can never reconfigure a running team.
+
+How to think about all of this — who should orchestrate, how to pick models and
+effort per role, how to shape the communication graph — is in
+[`docs/creating-a-team.md`](docs/creating-a-team.md). The full file schema is in
+[`docs/team-format.md`](docs/team-format.md), and there is a complete worked
+example in [`examples/teams/longtail-marketing.yaml`](examples/teams/longtail-marketing.yaml).
 
 ---
 
@@ -556,6 +572,8 @@ Everything lives under `~/.claude-team/` (or `$CLAUDE_TEAM_HOME`):
 ```
 ~/.claude-team/
     claude-team.db      teams, agents, runs, tasks, messages, events, settings
+    instance.lock       which process owns the runtime
+    teams/              YAML mirror of every team — safe to commit
 ```
 
 Settings (edit in the Settings section of either UI):
@@ -564,6 +582,7 @@ Settings (edit in the Settings section of either UI):
 | --- | --- |
 | `defaultModel`, `defaultOrchestratorModel`, `defaultEffort` | Defaults for new agents |
 | `defaultWorkspace` | Suggested workspace for new teams |
+| `teamsDir` | Where team YAML is mirrored (default `~/.claude-team/teams`) |
 | `provider` | `claude` or `fake` |
 | `defaultBudget` | Applied to teams that define none |
 | `requireApprovalFor` | Categories that always need a human |

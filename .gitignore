@@ -13,10 +13,14 @@ coverage/
 .vite/
 *.tgz
 
-# Local application data — teams, runs, message history, the instance lock.
-# Never committed: it is per-machine state, and runs can contain private
-# workspace content. Share a team with `claude-team team export` instead.
-.claude-team/
+# Local application data — the database, run history, the instance lock — is
+# per-machine state and can contain private workspace content, so it stays out.
+# The exception is `teams/`: that folder is the YAML mirror of your teams,
+# written on every change precisely so it CAN be reviewed and committed.
+# (Ignoring the contents rather than the directory is what makes the negation
+# work: git cannot re-include a path whose parent directory is excluded.)
+.claude-team/*
+!.claude-team/teams/
 instance.lock
 *.db
 *.db-wal
