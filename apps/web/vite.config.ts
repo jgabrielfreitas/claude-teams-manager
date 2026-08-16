@@ -16,7 +16,12 @@ export default defineConfig({
     port: Number(process.env.WEB_PORT ?? 4318),
     strictPort: false,
     proxy: {
-      '/api': {
+      // A plain '/api' key is a *prefix* match, which also swallows client
+      // modules whose URL happens to start with it — `src/client/api.ts` is
+      // served at `/api.ts`, so every page that imported it got the API
+      // server's 404 instead of the module. Anchor the pattern to the path
+      // segment: only `/api/...` is the server's.
+      '^/api/': {
         target: `http://127.0.0.1:${apiPort}`,
         changeOrigin: true,
         // SSE must not be buffered by the dev proxy.
