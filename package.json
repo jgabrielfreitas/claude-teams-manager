@@ -19,7 +19,9 @@
     "lint": "eslint . --ext .ts,.tsx",
     "lint:fix": "eslint . --ext .ts,.tsx --fix",
     "format": "prettier --write \"**/*.{ts,tsx,json,md}\"",
-    "clean": "rm -rf node_modules **/node_modules **/dist **/*.tsbuildinfo"
+    "clean": "rm -rf node_modules **/node_modules **/dist **/*.tsbuildinfo",
+    "smoke:question": "tsx scripts/smoke-question.ts",
+    "smoke:team": "tsx scripts/smoke-team.ts"
   },
   "devDependencies": {
     "@claude-team/core": "workspace:*",

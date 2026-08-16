@@ -730,8 +730,9 @@ makes the whole runtime testable deterministically.
 For the parts a fake cannot prove, two scripts hit the real API:
 
 ```bash
-pnpm smoke                      # provider health, live model discovery, one agent
-pnpm tsx scripts/smoke-team.ts  # real orchestrator delegating to a real worker
+pnpm smoke            # provider health, live model discovery, one agent   (~$0.06)
+pnpm smoke:team       # a real orchestrator delegating to a real worker    (~$0.26)
+pnpm smoke:question   # a real agent asking you a question, and using the answer (~$0.27)
 ```
 
 ---
