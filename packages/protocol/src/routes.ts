@@ -54,6 +54,21 @@ export const routes = {
   runCancel: (id: string) => `${API_PREFIX}/runs/${id}/cancel`,
   runRetry: (id: string) => `${API_PREFIX}/runs/${id}/retry`,
   runEvents: (id: string, afterSeq = 0) => `${API_PREFIX}/runs/${id}/events?afterSeq=${afterSeq}`,
+  /**
+   * The whole run as one document. `download=1` makes the browser save it;
+   * without it the body is returned for copying to the clipboard.
+   */
+  runExport: (
+    id: string,
+    options: { format?: string; includeDebug?: boolean; download?: boolean } = {},
+  ) => {
+    const params = new URLSearchParams();
+    if (options.format) params.set('format', options.format);
+    if (options.includeDebug) params.set('includeDebug', '1');
+    if (options.download) params.set('download', '1');
+    const query = params.toString();
+    return `${API_PREFIX}/runs/${id}/export${query ? `?${query}` : ''}`;
+  },
   runMessages: (id: string) => `${API_PREFIX}/runs/${id}/messages`,
   runTasks: (id: string) => `${API_PREFIX}/runs/${id}/tasks`,
 

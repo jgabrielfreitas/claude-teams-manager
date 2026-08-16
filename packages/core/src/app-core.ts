@@ -63,6 +63,13 @@ import {
   writeTeamFile,
 } from './team-files.js';
 import { acquireInstanceLock, type InstanceInfo, type InstanceLock } from './instance-lock.js';
+import {
+  formatTranscript,
+  transcriptFileName,
+  transcriptMimeType,
+  type TranscriptFormat,
+  type TranscriptOptions,
+} from './transcript.js';
 import { search, type SearchHit } from './search.js';
 import { describeGit, expandPath, inspectWorkspace, type WorkspaceInfo } from './workspace.js';
 
@@ -1129,6 +1136,27 @@ export class AppCore {
       approvals,
       progress: taskProgress(tasks),
       isActive: this.runs.isActive(runId),
+    };
+  }
+
+  /**
+   * The whole run as a single document — objective, per-agent configuration,
+   * task board, conversation, timeline and result.
+   *
+   * Rendered in the core so the text the TUI copies and the file the browser
+   * downloads are the same artefact.
+   */
+  async exportRun(
+    runId: string,
+    options: TranscriptOptions = {},
+  ): Promise<{ content: string; fileName: string; mimeType: string; format: TranscriptFormat }> {
+    const detail = await this.getRunDetail(runId);
+    const format = options.format ?? 'markdown';
+    return {
+      content: formatTranscript(detail, { ...options, format }),
+      fileName: transcriptFileName(detail.run, format),
+      mimeType: transcriptMimeType(format),
+      format,
     };
   }
 

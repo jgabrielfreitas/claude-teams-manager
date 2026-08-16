@@ -141,6 +141,14 @@ export class ApiClient {
   retryRun = (id: string) => this.post<RunDto>(routes.runRetry(id));
   getRunEvents = (id: string, afterSeq = 0) =>
     this.request<RunEventDto[]>(routes.runEvents(id, afterSeq));
+  /** The full run transcript, for copying to the clipboard. */
+  exportRun = (id: string, options: { format?: string; includeDebug?: boolean } = {}) =>
+    this.request<{ content: string; fileName: string; format: string }>(
+      routes.runExport(id, options),
+    );
+  /** URL that makes the browser download the transcript as a file. */
+  runDownloadUrl = (id: string, options: { format?: string; includeDebug?: boolean } = {}) =>
+    `${this.baseUrl}${routes.runExport(id, { ...options, download: true })}`;
   getRunMessages = (id: string) => this.request<MessageDto[]>(routes.runMessages(id));
   getRunTasks = (id: string) => this.request<TaskDto[]>(routes.runTasks(id));
 
