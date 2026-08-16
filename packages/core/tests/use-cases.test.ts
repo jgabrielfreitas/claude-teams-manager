@@ -204,6 +204,48 @@ describe('agent use cases', () => {
   });
 });
 
+describe('workspace checks before a run', () => {
+  it('refuses a run whose workspace does not exist, naming the path and the owner', async () => {
+    const app = await core();
+    const team = await app.createTeamFromPreset({ presetId: 'solo' });
+    await app.updateTeam(team.id, { workspace: '/definitely/not/a/real/directory' });
+
+    // Without this check the failure surfaces from deep inside the provider as
+    // a native-binary/libc error, which sends people looking in the wrong place.
+    await expect(
+      app.startRun({ teamId: team.id, objective: 'anything' }),
+    ).rejects.toThrow(/workspace for team .* does not exist: \/definitely\/not\/a\/real\/directory/i);
+
+    // Nothing was created for a run that could never have started.
+    expect(await app.listRuns()).toEqual([]);
+    await app.shutdown();
+  });
+
+  it('checks a per-agent workspace override too', async () => {
+    const app = await core();
+    const team = await app.createTeamFromPreset({ presetId: 'software-engineering' });
+    await app.updateTeam(team.id, { workspace: process.cwd() });
+    const backend = team.agents.find((a) => a.handle === 'backend')!;
+    await app.updateAgent(backend.id, { workspace: '/nope/not/here' });
+
+    await expect(app.startRun({ teamId: team.id, objective: 'anything' })).rejects.toThrow(
+      /agent "backend"/i,
+    );
+    await app.shutdown();
+  });
+
+  it('starts happily when the workspace is a real directory', async () => {
+    const app = await core();
+    const team = await app.createTeamFromPreset({ presetId: 'solo' });
+    await app.updateTeam(team.id, { workspace: process.cwd() });
+
+    const run = await app.startRun({ teamId: team.id, objective: 'anything' });
+    await app.waitForRun(run.id);
+    expect((await app.getRun(run.id)).status).toBe('completed');
+    await app.shutdown();
+  }, 30_000);
+});
+
 describe('import and export', () => {
   it('round-trips a team through YAML', async () => {
     const app = await core();

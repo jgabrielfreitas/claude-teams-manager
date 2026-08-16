@@ -4,7 +4,10 @@ description: >
   Agência pequena de marketing de cauda longa: estratégia de pauta, pesquisa de
   palavras-chave, produção de conteúdo, revisão editorial/SEO e análise de
   performance.
-workspace: ~/projects/conteudo
+# Aponte para a pasta onde os textos devem ser gravados. Se você deixar
+# comentado, o time usa o diretório de onde o claude-team foi iniciado.
+# A pasta precisa existir antes de rodar.
+# workspace: ~/projects/conteudo
 orchestrator: head
 default_agent: head
 

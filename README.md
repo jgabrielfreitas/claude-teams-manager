@@ -742,6 +742,15 @@ pnpm tsx scripts/smoke-team.ts  # real orchestrator delegating to a real worker
 Run `claude` once and log in, or export `ANTHROPIC_API_KEY`. Verify with
 `pnpm smoke`, which prints exactly what was detected.
 
+**"Claude Code native binary … exists but failed to launch" (libc / musl).**
+On macOS this message is almost always misleading. The usual cause is that the
+team's or an agent's **workspace directory does not exist**: the agent is spawned
+with it as its `cwd`, the spawn fails with `ENOENT`, and the SDK reports it as a
+binary problem. Runs now refuse to start with a clear message naming the path
+instead — create the directory, or change the workspace. If the binary really is
+the problem, point the provider at your own installation with
+`ClaudeProvider({ pathToClaudeCodeExecutable: '/path/to/claude' })`.
+
 **The Claude CLI is not found.**
 The SDK spawns the `claude` binary. Install Claude Code and make sure it is on
 `PATH`; the onboarding wizard reports what it found.

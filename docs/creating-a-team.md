@@ -319,6 +319,12 @@ cada agente rodou.
 **Editei o YAML na pasta `teams/` e nada mudou.** É espelho. Rode
 `claude-team team import <arquivo>` — lembrando que isso cria um time novo.
 
+**"native binary … failed to launch" ao iniciar o run.** A mensagem do SDK fala
+em libc, mas no macOS a causa quase sempre é outra: o `workspace` aponta para
+uma pasta que não existe. O agente é lançado com ela como `cwd`, o spawn falha
+com `ENOENT`, e o SDK atribui isso ao binário. O run agora recusa antes disso,
+dizendo qual caminho e de quem é — crie a pasta ou mude o workspace.
+
 **YAML inválido no import.** O erro aponta linha e coluna. O caso mais comum é
 dois-pontos dentro de um texto sem aspas:
 

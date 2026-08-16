@@ -1014,6 +1014,10 @@ export class AppCore {
    */
   async startRun(input: unknown): Promise<Run> {
     const parsed = startRunSchema.parse(input);
+    await this.assertWorkspacesExist(
+      parsed.teamId,
+      parsed.workspace ? expandPath(parsed.workspace) : undefined,
+    );
     const run = await this.runs.createRun({
       teamId: parsed.teamId,
       objective: parsed.objective,
@@ -1026,8 +1030,47 @@ export class AppCore {
     return this.runs.start(run.id);
   }
 
+  /**
+   * Every agent is spawned with its working directory as the process `cwd`.
+   * A directory that does not exist makes the spawn fail deep inside the
+   * provider, where the error is reported as a binary/libc problem — which
+   * sends people looking in entirely the wrong place. Check it up front and
+   * say plainly what is wrong.
+   */
+  private async assertWorkspacesExist(teamId: string, runWorkspace?: string): Promise<void> {
+    const team = await this.deps.storage.teams.get(teamId);
+    if (!team) throw notFound('Team', teamId);
+    const agents = await this.deps.storage.agents.listByTeam(teamId);
+
+    const teamWorkspace = runWorkspace ?? team.workspace;
+    const targets: Array<{ path: string; owner: string }> = [];
+    if (teamWorkspace) targets.push({ path: teamWorkspace, owner: `team "${team.name}"` });
+    for (const agent of agents) {
+      if (agent.workspace) targets.push({ path: agent.workspace, owner: `agent "${agent.handle}"` });
+    }
+
+    for (const target of targets) {
+      const info = await inspectWorkspace(target.path);
+      if (!info.exists) {
+        throw invalid(
+          `The workspace for ${target.owner} does not exist: ${info.path}. ` +
+            'Create the directory, or point the workspace somewhere else before starting a run.',
+          { path: info.path, owner: target.owner },
+        );
+      }
+      if (!info.isDirectory) {
+        throw invalid(
+          `The workspace for ${target.owner} is not a directory: ${info.path}.`,
+          { path: info.path, owner: target.owner },
+        );
+      }
+    }
+  }
+
   /** Starts a run that was created queued (`autoStart: false`). */
   async startQueuedRun(runId: string): Promise<Run> {
+    const queued = await this.getRun(runId);
+    await this.assertWorkspacesExist(queued.teamId, queued.workspace);
     const run = await this.runs.start(runId);
     this.emit({ type: 'run.status', runId, status: run.status, run });
     return run;
@@ -1057,6 +1100,8 @@ export class AppCore {
 
   /** Creates a fresh run with the same objective, and starts it. */
   async retryRun(runId: string): Promise<Run> {
+    const previous = await this.getRun(runId);
+    await this.assertWorkspacesExist(previous.teamId, previous.workspace);
     const created = await this.runs.retry(runId);
     this.emit({ type: 'run.created', run: created });
     return this.runs.start(created.id);
