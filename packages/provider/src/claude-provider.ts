@@ -1,6 +1,7 @@
 import { query, createSdkMcpServer, tool } from '@anthropic-ai/claude-agent-sdk';
 import {
   BUILTIN_CLAUDE_MODELS,
+  addUsage,
   DomainError,
   emptyUsage,
   estimateCostUsd,
@@ -238,6 +239,10 @@ export class ClaudeProvider implements AgentProvider {
     let numTurns = 0;
     let lastText = '';
     let sawResult = false;
+    // Accumulated per-turn, so an activation that is cancelled or times out
+    // still reports what it spent. The result message is authoritative when it
+    // arrives; this is what we have when it does not.
+    let partialUsage: TokenUsage = emptyUsage();
 
     try {
       const grants = resolveToolGrants(
@@ -294,6 +299,7 @@ export class ClaudeProvider implements AgentProvider {
 
         if (m.type === 'assistant') {
           sessionId = m.session_id ?? sessionId;
+          if (m.message?.usage) partialUsage = addUsage(partialUsage, readUsage(m.message.usage));
           const blocks = Array.isArray(m.message?.content) ? m.message.content : [];
           for (const block of blocks) {
             if (block.type === 'thinking' && block.thinking) {
@@ -385,6 +391,8 @@ export class ClaudeProvider implements AgentProvider {
               : 'The provider stream ended before producing a result.',
           ),
           recoverable: !abort.signal.aborted,
+          usage: partialUsage,
+          costUsd: estimateCostUsd(input.model, partialUsage),
         };
       }
     } catch (err) {
@@ -393,10 +401,18 @@ export class ClaudeProvider implements AgentProvider {
           type: 'error',
           error: new DomainError('cancelled', 'The activation was cancelled.'),
           recoverable: false,
+          usage: partialUsage,
+          costUsd: estimateCostUsd(input.model, partialUsage),
         };
         return;
       }
-      yield { type: 'error', error: toDomainError(err, 'provider_error'), recoverable: true };
+      yield {
+        type: 'error',
+        error: toDomainError(err, 'provider_error'),
+        recoverable: true,
+        usage: partialUsage,
+        costUsd: estimateCostUsd(input.model, partialUsage),
+      };
     } finally {
       if (timeout) clearTimeout(timeout);
       input.signal?.removeEventListener('abort', onExternalAbort);
@@ -498,6 +514,16 @@ function buildTeamToolServer(specs: ProviderToolSpec[]) {
   });
 }
 
+/** Reads one Anthropic-shaped usage object into our own. */
+function readUsage(usage: Record<string, unknown>): TokenUsage {
+  return {
+    inputTokens: num(usage['input_tokens']),
+    outputTokens: num(usage['output_tokens']),
+    cacheReadInputTokens: num(usage['cache_read_input_tokens']),
+    cacheCreationInputTokens: num(usage['cache_creation_input_tokens']),
+  };
+}
+
 function extractUsage(result: RawResultMessage): TokenUsage {
   const total = emptyUsage();
 
@@ -590,7 +616,7 @@ interface RawMessage {
   tools?: string[];
 
   /** `assistant`/`user` */
-  message?: { content?: RawContentBlock[] | string };
+  message?: { content?: RawContentBlock[] | string; usage?: Record<string, unknown> };
 
   /** `result` */
   is_error?: boolean;

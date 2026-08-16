@@ -85,6 +85,12 @@ export class FakeAgentProvider implements AgentProvider {
 
   constructor(private readonly options: FakeProviderOptions = {}) {}
 
+  /** What a half-finished activation is treated as having spent. */
+  private partialUsage(): TokenUsage {
+    const full = { ...emptyUsage(), inputTokens: 1000, outputTokens: 200, ...this.options.usagePerActivation };
+    return { ...full, inputTokens: Math.round(full.inputTokens / 2), outputTokens: Math.round(full.outputTokens / 2) };
+  }
+
   /** Number of times a given agent handle was activated. */
   activationsOf(handle: string): RecordedActivation[] {
     return this.activations.filter((a) => a.agentHandle === handle);
@@ -151,6 +157,8 @@ export class FakeAgentProvider implements AgentProvider {
             type: 'error',
             error: new DomainError('cancelled', 'The activation was cancelled.'),
             recoverable: false,
+            usage: this.partialUsage(),
+            costUsd: (this.options.costPerActivation ?? 0.01) / 2,
           };
           return;
         }
@@ -278,6 +286,8 @@ export class FakeAgentProvider implements AgentProvider {
           type: 'error',
           error: new DomainError('cancelled', 'The activation was cancelled.'),
           recoverable: false,
+          usage: this.partialUsage(),
+          costUsd: (this.options.costPerActivation ?? 0.01) / 2,
         };
         return;
       }

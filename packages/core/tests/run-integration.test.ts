@@ -294,6 +294,13 @@ describe('run engine (integration)', () => {
     expect(detail.tasks.every((t) => ['cancelled', 'failed'].includes(t.status))).toBe(true);
     expect(detail.events.some((e) => e.type === 'run_cancelled')).toBe(true);
 
+    // A cancelled activation still spent tokens before it was stopped, and the
+    // run must say so — reporting a cancelled run as free is a lie that hides
+    // real spend.
+    expect(cancelled.totals.agentActivations).toBeGreaterThan(0);
+    expect(cancelled.totals.usage.inputTokens).toBeGreaterThan(0);
+    expect(cancelled.totals.costUsd).toBeGreaterThan(0);
+
     await core.shutdown();
   }, 30_000);
 });

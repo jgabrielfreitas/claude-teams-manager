@@ -710,6 +710,9 @@ export class RunEngine implements ToolHost {
           case 'error':
             ok = false;
             error = event.error.message;
+            // A cancelled or failed activation still spent tokens; bill them.
+            if (event.usage) usage = event.usage;
+            if (event.costUsd !== undefined) costUsd = event.costUsd;
             if (event.error.code === 'cancelled') this.cancelled = true;
             break;
         }

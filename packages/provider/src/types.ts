@@ -113,7 +113,19 @@ export type AgentEvent =
       numTurns: number;
       durationMs: number;
     }
-  | { type: 'error'; error: DomainError; recoverable: boolean };
+  /**
+   * A failed or cancelled activation still costs money. `usage`/`costUsd` carry
+   * whatever was spent before it ended, so a cancelled run does not report as
+   * free — the provider only reports authoritative totals on success, and a run
+   * the human stopped would otherwise show zero.
+   */
+  | {
+      type: 'error';
+      error: DomainError;
+      recoverable: boolean;
+      usage?: TokenUsage;
+      costUsd?: number;
+    };
 
 /* ------------------------------------------------------------------ *
  * Provider
