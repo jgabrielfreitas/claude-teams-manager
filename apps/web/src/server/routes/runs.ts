@@ -1,5 +1,18 @@
-import type { AppCore } from '@claude-team/core';
+import { TRANSCRIPT_FORMATS, type AppCore, type TranscriptFormat } from '@claude-team/core';
+import { invalid } from '@claude-team/domain';
 import { Hono } from 'hono';
+
+/**
+ * The only rule this file owns: which of the core's formats a query string is
+ * allowed to name. The document itself is rendered by `core.exportRun`.
+ */
+function transcriptFormat(value: string | undefined): TranscriptFormat | undefined {
+  if (value === undefined) return undefined;
+  if (!(TRANSCRIPT_FORMATS as readonly string[]).includes(value)) {
+    throw invalid(`format: expected one of ${TRANSCRIPT_FORMATS.join(', ')}`, { format: value });
+  }
+  return value as TranscriptFormat;
+}
 
 /**
  * Runs. Lifecycle transitions are the run manager's business — these handlers
@@ -21,6 +34,23 @@ export function runRoutes(core: AppCore): Hono {
     const afterSeq = Number(c.req.query('afterSeq') ?? 0);
     return c.json(await core.listRunEvents(c.req.param('id'), Number.isFinite(afterSeq) ? afterSeq : 0));
   });
+
+  /**
+   * The whole run as one document. `download=1` returns the raw body as an
+   * attachment; without it the JSON envelope feeds the copy button.
+   */
+  app.get('/api/runs/:id/export', async (c) => {
+    const { content, fileName, mimeType, format } = await core.exportRun(c.req.param('id'), {
+      format: transcriptFormat(c.req.query('format')) ?? 'markdown',
+      includeDebug: c.req.query('includeDebug') === '1',
+    });
+    if (c.req.query('download') !== '1') return c.json({ content, fileName, format });
+    return c.body(content, 200, {
+      'content-type': mimeType,
+      'content-disposition': `attachment; filename="${fileName}"`,
+    });
+  });
+
   app.get('/api/runs/:id/messages', async (c) => c.json(await core.listMessages(c.req.param('id'))));
   app.get('/api/runs/:id/tasks', async (c) => c.json(await core.listTasks(c.req.param('id'))));
 

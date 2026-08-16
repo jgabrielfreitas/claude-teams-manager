@@ -246,6 +246,15 @@ export class RunManager {
     return this.engines.get(runId)?.resolveApproval(approvalId, decision, by) ?? false;
   }
 
+  answerQuestion(runId: string, questionId: string, answer: string, by?: string): boolean {
+    return this.engines.get(runId)?.answerQuestion(questionId, answer, by) ?? false;
+  }
+
+  pendingQuestions(runId?: string) {
+    if (runId) return this.engines.get(runId)?.pendingQuestions() ?? [];
+    return [...this.engines.values()].flatMap((e) => e.pendingQuestions());
+  }
+
   pendingApprovals(runId?: string) {
     if (runId) return this.engines.get(runId)?.pendingApprovals() ?? [];
     return [...this.engines.values()].flatMap((e) => e.pendingApprovals());

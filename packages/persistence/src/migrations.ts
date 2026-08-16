@@ -228,6 +228,36 @@ export const migrations: Migration[] = [
       db.exec('ALTER TABLE settings ADD COLUMN teams_dir TEXT');
     },
   },
+  {
+    id: 3,
+    name: '003_questions',
+    // An agent asking the human something it cannot decide alone. Distinct from
+    // `approvals`: this one carries an answer back, not a yes/no.
+    up(db) {
+      db.exec(`
+        CREATE TABLE questions (
+          id              TEXT PRIMARY KEY,
+          run_id          TEXT NOT NULL REFERENCES runs(id) ON DELETE CASCADE,
+          agent_id        TEXT NOT NULL,
+          header          TEXT,
+          question        TEXT NOT NULL,
+          options         TEXT NOT NULL DEFAULT '[]',
+          allow_multiple  INTEGER NOT NULL DEFAULT 0,
+          allow_freeform  INTEGER NOT NULL DEFAULT 1,
+          task_id         TEXT,
+          status          TEXT NOT NULL,
+          answer          TEXT,
+          answered_by     TEXT,
+          created_at      INTEGER NOT NULL,
+          answered_at     INTEGER,
+          expires_at      INTEGER
+        );
+        CREATE INDEX idx_questions_run ON questions(run_id);
+      `);
+      db.exec('ALTER TABLE settings ADD COLUMN auto_answer_questions INTEGER NOT NULL DEFAULT 0');
+      db.exec('ALTER TABLE settings ADD COLUMN question_timeout_ms INTEGER NOT NULL DEFAULT 1800000');
+    },
+  },
 ];
 
 interface MigrationRow {

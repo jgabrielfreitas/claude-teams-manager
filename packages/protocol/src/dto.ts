@@ -2,6 +2,7 @@ import type {
   Agent,
   AgentEffort,
   AgentMessage,
+  AgentQuestion,
   AgentStatus,
   AppSettings,
   ApprovalRequest,
@@ -39,6 +40,7 @@ export type TaskDto = Jsonified<Task>;
 export type MessageDto = Jsonified<AgentMessage>;
 export type RunEventDto = Jsonified<RunEvent>;
 export type ApprovalDto = Jsonified<ApprovalRequest>;
+export type QuestionDto = Jsonified<AgentQuestion>;
 export type SettingsDto = Jsonified<AppSettings>;
 
 export interface CatalogDto {
@@ -95,6 +97,7 @@ export interface DashboardDto {
   recentRuns: RunDto[];
   recentEvents: RunEventDto[];
   pendingApprovals: ApprovalDto[];
+  pendingQuestions: QuestionDto[];
   /** Task progress per active run, keyed by run id. */
   progress: Record<string, TaskProgressDto>;
   counts: { teams: number; agents: number; runs: number; runningAgents: number };
@@ -109,6 +112,7 @@ export interface RunDetailDto {
   messages: MessageDto[];
   events: RunEventDto[];
   approvals: ApprovalDto[];
+  questions: QuestionDto[];
   progress: TaskProgressDto;
   isActive: boolean;
 }
@@ -204,6 +208,7 @@ export type AppEventDto =
   | { type: 'agent.status'; agentId: string; status: AgentStatus }
   | { type: 'message'; message: MessageDto }
   | { type: 'approval'; approval: ApprovalDto }
+  | { type: 'question'; question: QuestionDto }
   | { type: 'task.changed'; runId: string; task: TaskDto }
   | { type: 'team.changed'; teamId: string | null }
   | { type: 'agent.changed'; agentId: string | null; teamId: string }
@@ -223,6 +228,8 @@ export function eventTouchesRun(event: AppEventDto, runId: string): boolean {
       return event.message.runId === runId;
     case 'approval':
       return event.approval.runId === runId;
+    case 'question':
+      return event.question.runId === runId;
     default:
       return false;
   }
@@ -241,6 +248,8 @@ export function eventTouchesAgent(event: AppEventDto, agentId: string): boolean 
       return event.message.from === agentId || event.message.to.includes(agentId);
     case 'approval':
       return event.approval.agentId === agentId;
+    case 'question':
+      return event.question.agentId === agentId;
     default:
       return false;
   }

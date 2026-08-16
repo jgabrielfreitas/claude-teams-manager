@@ -1,6 +1,7 @@
 import type {
   Agent,
   AgentMessage,
+  AgentQuestion,
   AppSettings,
   ApprovalRequest,
   Run,
@@ -116,6 +117,13 @@ export interface ApprovalRepository {
   update(approval: ApprovalRequest): Promise<ApprovalRequest>;
 }
 
+export interface QuestionRepository {
+  list(filter?: { runId?: string; status?: string }): Promise<AgentQuestion[]>;
+  get(id: string): Promise<AgentQuestion | undefined>;
+  create(question: AgentQuestion): Promise<AgentQuestion>;
+  update(question: AgentQuestion): Promise<AgentQuestion>;
+}
+
 export interface SettingsRepository {
   get(): Promise<AppSettings>;
   save(settings: AppSettings): Promise<AppSettings>;
@@ -129,6 +137,7 @@ export interface Storage {
   readonly messages: MessageRepository;
   readonly events: EventRepository;
   readonly approvals: ApprovalRepository;
+  readonly questions: QuestionRepository;
   readonly settings: SettingsRepository;
 
   /** Applies migrations and prepares the store. Safe to call more than once. */

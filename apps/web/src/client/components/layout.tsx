@@ -13,7 +13,8 @@ const CONNECTION_UI: Record<ConnectionStatus, { label: string; tone: Tone; busy:
   offline: { label: 'offline', tone: 'danger', busy: false },
 };
 
-function isTypingTarget(target: EventTarget | null): boolean {
+/** True when a key belongs to whatever the user is typing into. */
+export function isTypingTarget(target: EventTarget | null): boolean {
   const element = target as HTMLElement | null;
   if (!element) return false;
   const tag = element.tagName;

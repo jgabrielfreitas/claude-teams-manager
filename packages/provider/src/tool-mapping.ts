@@ -29,6 +29,18 @@ const GROUP_TOOLS: Record<ToolGroupId, string[]> = {
 /** Tools that are always available regardless of configuration. */
 const ALWAYS_ALLOWED = ['TodoWrite'];
 
+/**
+ * Provider built-ins that must never reach an agent, whatever its capabilities.
+ *
+ * `AskUserQuestion` is the interactive ask-the-human tool of the host CLI. In a
+ * team run there is no such channel behind it: it is not a capability, so it
+ * falls through to the permission gate, where the human is asked to *approve
+ * the act of asking* and the answer is never delivered — the agent then waits
+ * for something that cannot arrive. Agents ask through our own `ask_user`
+ * tool, which really does park them until a human answers.
+ */
+const NEVER_ALLOWED = ['AskUserQuestion'];
+
 export function toolsForGroup(group: ToolGroupId): string[] {
   return GROUP_TOOLS[group] ?? [];
 }
@@ -94,7 +106,7 @@ export function resolveToolGrants(
   if (terminal === 'deny' && git === 'deny') best.set('Bash', 'deny');
 
   const allowedTools: string[] = [...ALWAYS_ALLOWED, ...customToolNames];
-  const disallowedTools: string[] = [];
+  const disallowedTools: string[] = [...NEVER_ALLOWED];
   const askTools: string[] = [];
 
   for (const [tool, mode] of best) {

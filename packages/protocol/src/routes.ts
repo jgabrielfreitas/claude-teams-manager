@@ -78,6 +78,11 @@ export const routes = {
     runId ? `${API_PREFIX}/approvals?runId=${encodeURIComponent(runId)}` : `${API_PREFIX}/approvals`,
   approvalDecision: () => `${API_PREFIX}/approvals/decision`,
 
+  /** Questions an agent is waiting on a human to answer. */
+  questions: (runId?: string) =>
+    runId ? `${API_PREFIX}/questions?runId=${encodeURIComponent(runId)}` : `${API_PREFIX}/questions`,
+  questionAnswer: () => `${API_PREFIX}/questions/answer`,
+
   workspaceInspect: (path: string) =>
     `${API_PREFIX}/workspace?path=${encodeURIComponent(path)}`,
 

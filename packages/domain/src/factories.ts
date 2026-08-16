@@ -1,4 +1,4 @@
-import { ids, slugify, uniqueSlug } from './ids.js';
+import { ids, newId, slugify, uniqueSlug } from './ids.js';
 import { invalid } from './errors.js';
 import { DEFAULT_EFFORT, coerceEffort, type AgentEffort } from './effort.js';
 import { DEFAULT_MODEL } from './models.js';
@@ -6,6 +6,8 @@ import { defaultToolPermissions, type ToolPermission } from './permissions.js';
 import { emptyUsage } from './models.js';
 import type {
   Agent,
+  AgentQuestion,
+  QuestionOption,
   AgentLimits,
   AgentMemory,
   AgentMessage,
@@ -334,6 +336,41 @@ export interface CreateApprovalInput {
   summary: string;
   input: Record<string, unknown>;
   expiresAt?: Date;
+}
+
+export interface CreateQuestionInput {
+  runId: string;
+  agentId: string;
+  question: string;
+  header?: string;
+  options?: QuestionOption[];
+  allowMultiple?: boolean;
+  allowFreeform?: boolean;
+  taskId?: string;
+  expiresAt?: Date;
+}
+
+export function createQuestion(input: CreateQuestionInput, now = new Date()): AgentQuestion {
+  const question = input.question?.trim();
+  if (!question) throw invalid('A question needs text');
+  const options = (input.options ?? [])
+    .map((o) => ({ label: o.label?.trim() ?? '', description: o.description?.trim() || undefined }))
+    .filter((o) => o.label);
+  return {
+    id: newId('qst'),
+    runId: input.runId,
+    agentId: input.agentId,
+    header: input.header?.trim() || undefined,
+    question,
+    options,
+    allowMultiple: input.allowMultiple ?? false,
+    // With no options to choose from, typing is the only way to answer.
+    allowFreeform: input.allowFreeform ?? options.length === 0,
+    taskId: input.taskId,
+    status: 'pending',
+    createdAt: now,
+    expiresAt: input.expiresAt,
+  };
 }
 
 export function createApproval(input: CreateApprovalInput, now = new Date()): ApprovalRequest {

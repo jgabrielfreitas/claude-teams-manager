@@ -12,6 +12,7 @@ import type {
   AgentMessage,
   AgentMessageStatus,
   AgentMessageType,
+  AgentQuestion,
   AgentStatus,
   AppSettings,
   ApprovalDecision,
@@ -38,6 +39,7 @@ import type {
   EventRepository,
   MessageListFilter,
   MessageRepository,
+  QuestionRepository,
   RunListFilter,
   RunRepository,
   SettingsRepository,
@@ -637,6 +639,8 @@ const SETTINGS_COLUMNS = [
   'theme',
   'telemetry',
   'teams_dir',
+  'auto_answer_questions',
+  'question_timeout_ms',
   'updated_at',
 ] as const;
 
@@ -659,6 +663,8 @@ function settingsToRow(s: AppSettings): BindRow {
     theme: s.theme,
     telemetry: bBool(s.telemetry),
     teams_dir: bStr(s.teamsDir),
+    auto_answer_questions: bBool(s.autoAnswerQuestions),
+    question_timeout_ms: s.questionTimeoutMs,
     updated_at: s.updatedAt.getTime(),
   };
 }
@@ -681,6 +687,8 @@ function rowToSettings(r: Row): AppSettings {
     theme: str(r['theme']) as AppSettings['theme'],
     telemetry: bool(r['telemetry']),
     teamsDir: optStr(r['teams_dir']),
+    autoAnswerQuestions: bool(r['auto_answer_questions']),
+    questionTimeoutMs: int(r['question_timeout_ms']),
     updatedAt: date(r['updated_at']),
   };
 }
@@ -1027,6 +1035,102 @@ class SqliteEventRepository implements EventRepository {
   }
 }
 
+const QUESTION_COLUMNS = [
+  'id',
+  'run_id',
+  'agent_id',
+  'header',
+  'question',
+  'options',
+  'allow_multiple',
+  'allow_freeform',
+  'task_id',
+  'status',
+  'answer',
+  'answered_by',
+  'created_at',
+  'answered_at',
+  'expires_at',
+] as const;
+
+function questionToRow(q: AgentQuestion): BindRow {
+  return {
+    id: q.id,
+    run_id: q.runId,
+    agent_id: q.agentId,
+    header: bStr(q.header),
+    question: q.question,
+    options: bJson(q.options ?? []),
+    allow_multiple: bBool(q.allowMultiple),
+    allow_freeform: bBool(q.allowFreeform),
+    task_id: bStr(q.taskId),
+    status: q.status,
+    answer: bStr(q.answer),
+    answered_by: bStr(q.answeredBy),
+    created_at: q.createdAt.getTime(),
+    answered_at: bDate(q.answeredAt),
+    expires_at: bDate(q.expiresAt),
+  };
+}
+
+function rowToQuestion(r: Row): AgentQuestion {
+  return {
+    id: str(r['id']),
+    runId: str(r['run_id']),
+    agentId: str(r['agent_id']),
+    header: optStr(r['header']),
+    question: str(r['question']),
+    options: json<AgentQuestion['options']>(r['options'], []),
+    allowMultiple: bool(r['allow_multiple']),
+    allowFreeform: bool(r['allow_freeform']),
+    taskId: optStr(r['task_id']),
+    status: str(r['status']) as AgentQuestion['status'],
+    answer: optStr(r['answer']),
+    answeredBy: optStr(r['answered_by']),
+    createdAt: date(r['created_at']),
+    answeredAt: optDate(r['answered_at']),
+    expiresAt: optDate(r['expires_at']),
+  };
+}
+
+class SqliteQuestionRepository implements QuestionRepository {
+  constructor(private readonly db: () => Database) {}
+
+  async list(filter?: { runId?: string; status?: string }): Promise<AgentQuestion[]> {
+    const where: string[] = [];
+    const params: Bindable[] = [];
+    if (filter?.runId) {
+      where.push('run_id = ?');
+      params.push(filter.runId);
+    }
+    if (filter?.status) {
+      where.push('status = ?');
+      params.push(filter.status);
+    }
+    const clause = where.length > 0 ? ` WHERE ${where.join(' AND ')}` : '';
+    const rows = this.db()
+      .prepare(`SELECT * FROM questions${clause} ORDER BY created_at ASC, rowid ASC`)
+      .all(...params) as Row[];
+    return rows.map(rowToQuestion);
+  }
+
+  async get(id: string): Promise<AgentQuestion | undefined> {
+    const row = this.db().prepare('SELECT * FROM questions WHERE id = ?').get(id) as Row | undefined;
+    return row ? rowToQuestion(row) : undefined;
+  }
+
+  async create(question: AgentQuestion): Promise<AgentQuestion> {
+    this.db().prepare(insertSql('questions', QUESTION_COLUMNS)).run(questionToRow(question));
+    return (await this.get(question.id))!;
+  }
+
+  async update(question: AgentQuestion): Promise<AgentQuestion> {
+    const res = this.db().prepare(updateSql('questions', QUESTION_COLUMNS)).run(questionToRow(question));
+    if (res.changes === 0) throw notFound('Question', question.id);
+    return (await this.get(question.id))!;
+  }
+}
+
 class SqliteApprovalRepository implements ApprovalRepository {
   constructor(private readonly db: () => Database) {}
 
@@ -1115,6 +1219,7 @@ export class SqliteStorage implements Storage {
   readonly messages: MessageRepository;
   readonly events: EventRepository;
   readonly approvals: ApprovalRepository;
+  readonly questions: QuestionRepository;
   readonly settings: SettingsRepository;
 
   constructor(opts: SqliteStorageOptions = {}) {
@@ -1128,6 +1233,7 @@ export class SqliteStorage implements Storage {
     this.messages = new SqliteMessageRepository(handle);
     this.events = new SqliteEventRepository(handle);
     this.approvals = new SqliteApprovalRepository(handle);
+    this.questions = new SqliteQuestionRepository(handle);
     this.settings = new SqliteSettingsRepository(handle);
   }
 

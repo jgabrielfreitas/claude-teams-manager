@@ -18,6 +18,8 @@ export function defaultSettings(now = new Date()): AppSettings {
     },
     requireApprovalFor: ['shell', 'destructive', 'git'],
     autoApproveAll: false,
+    autoAnswerQuestions: false,
+    questionTimeoutMs: 30 * 60 * 1000,
     maxHops: DEFAULT_ROUTING_LIMITS.maxHops,
     maxRecursionDepth: DEFAULT_ROUTING_LIMITS.maxRecursionDepth,
     askTimeoutMs: 5 * 60 * 1000,

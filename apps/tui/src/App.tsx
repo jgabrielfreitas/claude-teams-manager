@@ -12,10 +12,22 @@ import { DashboardView } from './views/Dashboard.js';
 import { TeamsView } from './views/Teams.js';
 import { AgentsView } from './views/Agents.js';
 import { RunsView } from './views/Runs.js';
+import { RunFullScreen } from './views/RunFullScreen.js';
 import { MessagesView } from './views/Messages.js';
 import { ActivityView } from './views/Activity.js';
 import { SettingsView } from './views/Settings.js';
 import { Onboarding } from './views/Onboarding.js';
+
+/**
+ * Keys the Runs section adds to the shared legend. They are listed here rather
+ * than in `KEY_LEGEND` because they are terminal-only: neither the full-screen
+ * view nor the system clipboard exists in the browser.
+ */
+const RUN_KEYS = [
+  { key: 'f', label: 'full screen' },
+  { key: 'y', label: 'copy transcript' },
+  { key: 'e', label: 'export transcript' },
+];
 
 /** The shell: chrome, global keys, and whichever section is on screen. */
 export function App(): React.JSX.Element {
@@ -36,6 +48,10 @@ export function App(): React.JSX.Element {
         ui.setOverlay('help');
         return;
       }
+      // The full-screen run view owns everything else while it is up: `q` and
+      // `esc` must take the user back to the run list, not out of the app, and
+      // it binds letters (g, G, f, t) that mean something different here.
+      if (ui.runFullScreen) return;
       if (input === 'q') {
         ui.quit();
         return;
@@ -56,6 +72,30 @@ export function App(): React.JSX.Element {
 
   const chrome = (ui.status ? 1 : 0) + (size.short ? 1 : 2);
   const bodyHeight = Math.max(4, size.rows - chrome - 1);
+
+  // The full-screen run view replaces the whole shell — no header, no footer,
+  // no panels. Only the layers that must always be reachable stay: an approval
+  // blocks an agent, a dialog is what the export prompt is made of, and the
+  // status line is where a copy reports itself.
+  if (ui.runFullScreen && !ui.onboarding) {
+    return (
+      <Box flexDirection="column" width={size.columns} height={Math.max(6, size.rows - 1)}>
+        <Box flexDirection="column" flexGrow={1}>
+          <ErrorBoundary>
+            <RunFullScreen
+              height={Math.max(4, size.rows - 1 - (ui.status ? 1 : 0))}
+              columns={size.columns}
+              narrow={size.narrow}
+            />
+          </ErrorBoundary>
+        </Box>
+        <OverlayHost />
+        <DialogHost />
+        <ApprovalModal />
+        <StatusBar />
+      </Box>
+    );
+  }
 
   const view = (() => {
     const props = { height: bodyHeight, columns: size.columns, narrow: size.narrow };
@@ -91,7 +131,7 @@ export function App(): React.JSX.Element {
       <DialogHost />
       <ApprovalModal />
       <StatusBar />
-      {size.short ? null : <Footer />}
+      {size.short ? null : <Footer extra={ui.section === 'runs' ? RUN_KEYS : undefined} />}
     </Box>
   );
 }

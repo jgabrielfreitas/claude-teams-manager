@@ -1,6 +1,7 @@
 import type {
   Agent,
   AgentMessage,
+  AgentQuestion,
   AppSettings,
   ApprovalRequest,
   Run,
@@ -18,6 +19,7 @@ import type {
   ListOptions,
   MessageListFilter,
   MessageRepository,
+  QuestionRepository,
   RunListFilter,
   RunRepository,
   SettingsRepository,
@@ -67,6 +69,7 @@ interface Tables {
   messages: Map<string, AgentMessage>;
   events: Map<string, RunEvent>;
   approvals: Map<string, ApprovalRequest>;
+  questions: Map<string, AgentQuestion>;
   sequences: Map<string, number>;
   settings: AppSettings | undefined;
 }
@@ -129,6 +132,7 @@ function deleteRunCascade(t: Tables, runId: string): void {
   for (const m of [...t.messages.values()]) if (m.runId === runId) t.messages.delete(m.id);
   for (const e of [...t.events.values()]) if (e.runId === runId) t.events.delete(e.id);
   for (const a of [...t.approvals.values()]) if (a.runId === runId) t.approvals.delete(a.id);
+  for (const q of [...t.questions.values()]) if (q.runId === runId) t.questions.delete(q.id);
   t.sequences.delete(seqKey(runId, 'message'));
   t.sequences.delete(seqKey(runId, 'event'));
 }
@@ -425,6 +429,34 @@ class MemoryApprovalRepository implements ApprovalRepository {
   }
 }
 
+class MemoryQuestionRepository implements QuestionRepository {
+  constructor(private readonly t: Tables) {}
+
+  async list(filter?: { runId?: string; status?: string }): Promise<AgentQuestion[]> {
+    let list = [...this.t.questions.values()];
+    if (filter?.runId) list = list.filter((q) => q.runId === filter.runId);
+    if (filter?.status) list = list.filter((q) => q.status === filter.status);
+    return byThenInserted(list, (a, b) => a.createdAt.getTime() - b.createdAt.getTime()).map(clone);
+  }
+
+  async get(id: string): Promise<AgentQuestion | undefined> {
+    const found = this.t.questions.get(id);
+    return found ? clone(found) : undefined;
+  }
+
+  async create(question: AgentQuestion): Promise<AgentQuestion> {
+    if (this.t.questions.has(question.id)) throw new Error(`Question ${question.id} already exists`);
+    this.t.questions.set(question.id, clone(question));
+    return clone(question);
+  }
+
+  async update(question: AgentQuestion): Promise<AgentQuestion> {
+    if (!this.t.questions.has(question.id)) throw notFound('Question', question.id);
+    this.t.questions.set(question.id, clone(question));
+    return clone(question);
+  }
+}
+
 class MemorySettingsRepository implements SettingsRepository {
   constructor(private readonly t: Tables) {}
 
@@ -452,6 +484,7 @@ export class InMemoryStorage implements Storage {
     messages: new Map(),
     events: new Map(),
     approvals: new Map(),
+    questions: new Map(),
     sequences: new Map(),
     settings: undefined,
   };
@@ -463,6 +496,7 @@ export class InMemoryStorage implements Storage {
   readonly messages: MessageRepository = new MemoryMessageRepository(this.tables);
   readonly events: EventRepository = new MemoryEventRepository(this.tables);
   readonly approvals: ApprovalRepository = new MemoryApprovalRepository(this.tables);
+  readonly questions: QuestionRepository = new MemoryQuestionRepository(this.tables);
   readonly settings: SettingsRepository = new MemorySettingsRepository(this.tables);
 
   async init(): Promise<void> {

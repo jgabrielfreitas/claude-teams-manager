@@ -2,7 +2,13 @@ import type { AppCore } from '@claude-team/core';
 import { routes } from '@claude-team/protocol';
 import { Hono } from 'hono';
 
-/** Human-authored messages into a run, and human-in-the-loop approvals. */
+/**
+ * The three ways a human takes part in a run: writing to an agent, approving an
+ * action, and answering a question.
+ *
+ * Approvals and questions are separate on purpose — an approval returns yes or
+ * no, a question returns content the agent then works from.
+ */
 export function collaborationRoutes(core: AppCore): Hono {
   const app = new Hono();
 
@@ -14,6 +20,14 @@ export function collaborationRoutes(core: AppCore): Hono {
 
   app.get('/api/approvals', async (c) =>
     c.json(await core.listPendingApprovals(c.req.query('runId'))),
+  );
+
+  app.post(routes.questionAnswer(), async (c) =>
+    c.json(await core.answerQuestion(await c.req.json())),
+  );
+
+  app.get('/api/questions', async (c) =>
+    c.json(await core.listPendingQuestions(c.req.query('runId'))),
   );
 
   return app;

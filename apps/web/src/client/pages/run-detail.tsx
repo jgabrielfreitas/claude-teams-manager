@@ -1,10 +1,13 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { availableRunActions, formatUsd, type RunAction } from '@claude-team/domain';
 import type { RunDetailDto } from '@claude-team/protocol';
 import { formatDuration, formatRelative, runDurationMs } from '@claude-team/ui-shared';
 import { client } from '../api';
 import { AgentAvatar } from '../components/agent-views';
+import { isTypingTarget } from '../components/layout';
+import { RunExportControls, useExportPrefs } from '../components/run-export';
+import { FullScreenRun, type FullScreenTab } from '../components/run-fullscreen';
 import {
   MessageThread,
   RunTotals,
@@ -60,15 +63,41 @@ export function RunDetailPage() {
   const tab = (params.get('tab') as Tab | null) ?? 'tasks';
   const focusTaskId = params.get('task') ?? undefined;
   const replaying = params.get('replay') === '1';
+  // Full screen lives in the URL so a refresh keeps it and a link can open it.
+  const fullScreen = params.get('full') === '1';
+  const fullTab = (params.get('view') as FullScreenTab | null) ?? 'timeline';
 
-  const setParam = (key: string, value?: string) => {
-    const next = new URLSearchParams(params);
-    if (value === undefined) next.delete(key);
-    else next.set(key, value);
-    setParams(next, { replace: true });
-  };
+  const setParam = useCallback(
+    (key: string, value?: string) => {
+      const next = new URLSearchParams(params);
+      if (value === undefined) next.delete(key);
+      else next.set(key, value);
+      setParams(next, { replace: true });
+    },
+    [params, setParams],
+  );
 
   const [messageOpen, setMessageOpen] = useState(false);
+  const [exportPrefs, setExportPrefs] = useExportPrefs();
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
+      if (event.key === 'Escape' && fullScreen) {
+        event.preventDefault();
+        setParam('full', undefined);
+        return;
+      }
+      if (event.key.toLowerCase() === 'f' && !isTypingTarget(event.target)) {
+        event.preventDefault();
+        setParam('full', fullScreen ? undefined : '1');
+      }
+    };
+    // Bubble phase on purpose: an open modal stops the event first, so Esc
+    // closes the dialog before it closes full screen.
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [fullScreen, setParam]);
 
   return (
     <Async resource={detail}>
@@ -121,8 +150,21 @@ export function RunDetailPage() {
               </div>
 
               <div className="actions">
+                <RunExportControls
+                  runId={runId}
+                  prefs={exportPrefs}
+                  onPrefsChange={setExportPrefs}
+                />
                 <button type="button" className="btn" onClick={() => setMessageOpen(true)}>
                   Send message
+                </button>
+                <button
+                  type="button"
+                  className="btn"
+                  title="Fill the window with this run (f)"
+                  onClick={() => setParam('full', '1')}
+                >
+                  Full screen <span className="kbd">f</span>
                 </button>
                 <button
                   type="button"
@@ -286,6 +328,17 @@ export function RunDetailPage() {
                 runId={runId}
                 agents={data.agents}
                 onClose={() => setMessageOpen(false)}
+              />
+            )}
+
+            {fullScreen && (
+              <FullScreenRun
+                data={data}
+                tab={fullTab}
+                onTabChange={(next) => setParam('view', next)}
+                onExit={() => setParam('full', undefined)}
+                prefs={exportPrefs}
+                onPrefsChange={setExportPrefs}
               />
             )}
           </>

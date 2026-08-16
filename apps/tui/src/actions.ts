@@ -9,6 +9,7 @@ import {
   type TeamWithAgents,
 } from '@claude-team/domain';
 import { EFFORT_UI, RUN_STATUS_UI, truncate, type SectionId } from '@claude-team/ui-shared';
+import { copyToClipboard } from './lib/clipboard.js';
 import type { SelectItem, Ui } from './store.js';
 
 /**
@@ -577,6 +578,77 @@ export async function runAction(ui: Ui, action: 'pause' | 'resume' | 'cancel' | 
 }
 
 /* ------------------------------------------------------------------ *
+ * Transcripts
+ * ------------------------------------------------------------------ */
+
+/** `14.2 KB` — only used to tell the user how much text just moved. */
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  const kb = bytes / 1024;
+  if (kb < 1024) return `${kb.toFixed(1)} KB`;
+  return `${(kb / 1024).toFixed(1)} MB`;
+}
+
+/**
+ * The transcript of the selected run, rendered by the core.
+ *
+ * Both the copy and the export go through here: the document the terminal puts
+ * on the clipboard and the one the browser downloads come from the same call,
+ * with the same options, so they are byte-identical.
+ */
+async function runTranscript(ui: Ui) {
+  const run = await currentRun(ui);
+  if (!run) return undefined;
+  const exported = await ui.guard(() =>
+    ui.core.exportRun(run.id, {
+      format: ui.transcript.format,
+      includeDebug: ui.transcript.includeDebug,
+    }),
+  );
+  if (!exported) return undefined;
+  return { run, ...exported, bytes: Buffer.byteLength(exported.content, 'utf8') };
+}
+
+export async function copyRunTranscript(ui: Ui): Promise<void> {
+  const transcript = await runTranscript(ui);
+  if (!transcript) return;
+
+  const result = await copyToClipboard(transcript.content);
+  if (result.ok) {
+    const caveat = result.detail ? ` — ${result.detail}` : '';
+    ui.notify(
+      `Copied ${formatBytes(transcript.bytes)} (${transcript.format}) to the clipboard${caveat}`,
+      'success',
+    );
+    return;
+  }
+  ui.notify(
+    `Could not reach the clipboard (${result.detail}). Press e to write ${transcript.fileName} to a file instead.`,
+    'danger',
+  );
+}
+
+export async function exportRunTranscript(ui: Ui): Promise<void> {
+  const transcript = await runTranscript(ui);
+  if (!transcript) return;
+
+  const path = await ui.dialogs.text({
+    title: 'Export run transcript',
+    label: 'file',
+    initial: resolve(process.cwd(), transcript.fileName),
+    help: `${transcript.format} · ${formatBytes(transcript.bytes)} · debug events ${
+      ui.transcript.includeDebug ? 'included' : 'excluded'
+    }`,
+  });
+  if (path === undefined) return;
+
+  const target = resolve(path.trim() || transcript.fileName);
+  await ui.guard(async () => {
+    await writeFile(target, transcript.content, 'utf8');
+  }, `Written to ${target}`);
+}
+
+/* ------------------------------------------------------------------ *
  * App
  * ------------------------------------------------------------------ */
 
@@ -611,6 +683,9 @@ const NAV: Record<string, SectionId> = {
 export async function executeCommand(id: string, ui: Ui): Promise<void> {
   const section = NAV[id];
   if (section) {
+    // Navigating away has to give the terminal back: the full-screen run view
+    // covers every section.
+    ui.setRunFullScreen(false);
     ui.setSection(section);
     return;
   }
@@ -678,15 +753,29 @@ export async function executeCommand(id: string, ui: Ui): Promise<void> {
       ui.select({ runId: run.id, teamId: run.teamId });
       ui.setRunMode('live');
       ui.setSection('runs');
+      ui.setRunFullScreen(false);
       ui.setFocus('detail');
       return;
     }
+    case 'run.fullscreen': {
+      const run = await currentRun(ui);
+      if (!run) return;
+      ui.select({ runId: run.id, teamId: run.teamId });
+      ui.setSection('runs');
+      ui.setRunFullScreen(true);
+      return;
+    }
+    case 'run.copyTranscript':
+      return copyRunTranscript(ui);
+    case 'run.exportTranscript':
+      return exportRunTranscript(ui);
     case 'run.replay': {
       const run = await currentRun(ui);
       if (!run) return;
       ui.select({ runId: run.id, teamId: run.teamId });
       ui.setRunMode('replay');
       ui.setSection('runs');
+      ui.setRunFullScreen(false);
       ui.setFocus('detail');
       return;
     }

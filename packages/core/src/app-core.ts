@@ -5,6 +5,7 @@ import {
   EFFORT_CATALOG,
   TEAM_PRESETS,
   TOOL_GROUP_CATALOG,
+  answerQuestionSchema,
   approvalDecisionSchema,
   cloneAgent as cloneAgentEntity,
   createAgent as createAgentEntity,
@@ -33,6 +34,7 @@ import {
   type Agent,
   type AgentEffort,
   type AgentMessage,
+  type AgentQuestion,
   type AgentStatus,
   type AppSettings,
   type ApprovalRequest,
@@ -96,6 +98,7 @@ export interface RunDetail {
   messages: AgentMessage[];
   events: RunEvent[];
   approvals: ApprovalRequest[];
+  questions: AgentQuestion[];
   progress: ReturnType<typeof taskProgress>;
   isActive: boolean;
 }
@@ -141,6 +144,7 @@ export interface DashboardView {
   recentRuns: Run[];
   recentEvents: RunEvent[];
   pendingApprovals: ApprovalRequest[];
+  pendingQuestions: AgentQuestion[];
   /** Task progress per active run, keyed by run id — so a dashboard needs one call. */
   progress: Record<string, ReturnType<typeof taskProgress>>;
   counts: { teams: number; agents: number; runs: number; runningAgents: number };
@@ -167,6 +171,7 @@ export class AppCore {
           this.events.emit({ type: 'run.status', runId, status: status as Run['status'] });
         },
         onApproval: (approval) => this.events.emit({ type: 'approval', approval }),
+        onQuestion: (question) => this.events.emit({ type: 'question', question }),
       },
       { ...DEFAULT_ENGINE_OPTIONS, ...(deps.engineOptions ?? {}) },
     );
@@ -290,6 +295,8 @@ export class AppCore {
   private applySettingsToEngine(settings: AppSettings): void {
     this.runs.setOptions({
       autoApproveAll: settings.autoApproveAll,
+      autoAnswerQuestions: settings.autoAnswerQuestions,
+      questionTimeoutMs: settings.questionTimeoutMs,
       requireApprovalFor: settings.requireApprovalFor,
       maxHops: settings.maxHops,
       maxRecursionDepth: settings.maxRecursionDepth,
@@ -1116,13 +1123,14 @@ export class AppCore {
 
   async getRunDetail(runId: string): Promise<RunDetail> {
     const run = await this.getRun(runId);
-    const [team, agents, tasks, messages, events, approvals] = await Promise.all([
+    const [team, agents, tasks, messages, events, approvals, questions] = await Promise.all([
       this.deps.storage.teams.get(run.teamId),
       this.deps.storage.agents.listByTeam(run.teamId),
       this.deps.storage.tasks.listByRun(runId),
       this.deps.storage.messages.list({ runId }),
       this.deps.storage.events.list({ runId }),
       this.deps.storage.approvals.list({ runId }),
+      this.deps.storage.questions.list({ runId }),
     ]);
     if (!team) throw notFound('Team', run.teamId);
 
@@ -1134,6 +1142,7 @@ export class AppCore {
       messages,
       events,
       approvals,
+      questions,
       progress: taskProgress(tasks),
       isActive: this.runs.isActive(runId),
     };
@@ -1274,6 +1283,74 @@ export class AppCore {
   }
 
   /* ================================================================ *
+   * Questions to the human
+   * ================================================================ */
+
+  /**
+   * Questions actually waiting for an answer. Like approvals, a row left
+   * `pending` by a dead process can never be answered, so only questions whose
+   * run is live are surfaced.
+   */
+  async listPendingQuestions(runId?: string): Promise<AgentQuestion[]> {
+    const live = this.runs.pendingQuestions(runId);
+    if (live.length > 0) return live;
+    const active = new Set(this.runs.activeRunIds());
+    const stored = await this.deps.storage.questions.list({ runId, status: 'pending' });
+    return stored.filter((q) => active.has(q.runId));
+  }
+
+  async listQuestions(runId: string): Promise<AgentQuestion[]> {
+    return this.deps.storage.questions.list({ runId });
+  }
+
+  /**
+   * Answers an agent's question. `selected` are labels picked from the offered
+   * options; `text` is free-form. Either or both may be given — the agent
+   * receives them as one piece of text.
+   */
+  async answerQuestion(input: unknown): Promise<{ ok: boolean }> {
+    const parsed = answerQuestionSchema.parse(input);
+    const question = await this.deps.storage.questions.get(parsed.questionId);
+    if (!question) throw notFound('Question', parsed.questionId);
+
+    const selected = parsed.selected ?? [];
+    if (selected.length > 1 && !question.allowMultiple) {
+      throw invalid('This question accepts a single choice.');
+    }
+    const offered = new Set(question.options.map((o) => o.label));
+    const unknownChoice = selected.find((label) => !offered.has(label));
+    if (unknownChoice) {
+      throw invalid(`"${unknownChoice}" is not one of the offered options.`, {
+        options: [...offered],
+      });
+    }
+    const freeform = parsed.text?.trim() ?? '';
+    if (selected.length === 0 && !freeform) {
+      throw invalid('Pick an option or type an answer.');
+    }
+    if (!freeform && selected.length === 0) throw invalid('Pick an option or type an answer.');
+    if (freeform && !question.allowFreeform && selected.length === 0) {
+      throw invalid('This question expects you to pick one of the offered options.');
+    }
+
+    const answer = [
+      selected.length ? `Chosen: ${selected.join(', ')}` : '',
+      freeform,
+    ]
+      .filter(Boolean)
+      .join('\n\n');
+
+    const ok = this.runs.answerQuestion(
+      question.runId,
+      question.id,
+      answer,
+      parsed.answeredBy ?? 'user',
+    );
+    if (!ok) throw illegalState('This question is no longer waiting for an answer.');
+    return { ok };
+  }
+
+  /* ================================================================ *
    * Activity, search, dashboard
    * ================================================================ */
 
@@ -1314,6 +1391,7 @@ export class AppCore {
       recentRuns: runs.slice(0, 10),
       recentEvents,
       pendingApprovals: await this.listPendingApprovals(),
+      pendingQuestions: await this.listPendingQuestions(),
       counts: {
         teams: teams.length,
         agents: agents.length,

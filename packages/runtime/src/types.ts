@@ -1,6 +1,7 @@
 import type {
   Agent,
   AgentEffort,
+  AgentQuestion,
   ApprovalDecision,
   ApprovalRequest,
   RunEvent,
@@ -21,6 +22,8 @@ export interface RuntimeDeps {
   onRunStatus?: (runId: string, status: string) => void;
   /** Called when an approval is created or resolved. */
   onApproval?: (approval: ApprovalRequest) => void;
+  /** Called when a question to the human is raised or answered. */
+  onQuestion?: (question: AgentQuestion) => void;
   clock?: () => Date;
 }
 
@@ -39,6 +42,10 @@ export interface RunEngineOptions {
   maxMessagesPerRun: number;
   /** Skip every approval prompt (dangerous; opt-in through Settings). */
   autoApproveAll: boolean;
+  /** Answer an agent's question automatically instead of waiting for a human. */
+  autoAnswerQuestions: boolean;
+  /** How long a question waits for a human before it is auto-answered. */
+  questionTimeoutMs: number;
   /** Categories that always need a human, even when the capability says allow. */
   requireApprovalFor: string[];
 }
@@ -52,6 +59,8 @@ export const DEFAULT_ENGINE_OPTIONS: RunEngineOptions = {
   maxRecursionDepth: 4,
   maxMessagesPerRun: 500,
   autoApproveAll: false,
+  autoAnswerQuestions: false,
+  questionTimeoutMs: 30 * 60 * 1000,
   requireApprovalFor: ['shell', 'destructive', 'git'],
 };
 

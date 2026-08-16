@@ -26,6 +26,16 @@ export interface ToolHost {
   askAgent(sender: Agent, args: { to: string; question: string }): Promise<string>;
   checkInbox(agent: Agent): Promise<string>;
   remember(agent: Agent, note: string): Promise<string>;
+  askUser(
+    agent: Agent,
+    args: {
+      question: string;
+      header?: string;
+      options?: Array<{ label: string; description?: string }>;
+      allowMultiple?: boolean;
+      allowFreeform?: boolean;
+    },
+  ): Promise<string>;
 
   createTasks(sender: Agent, specs: TaskSpecInput[]): Promise<string>;
   listTasks(): Promise<string>;
@@ -99,6 +109,50 @@ export function buildToolSpecs(options: ToolBuildOptions): ProviderToolSpec[] {
       handler: async () => text(await host.checkInbox(agent)),
     });
   }
+
+  // Available to every agent, always: asking the human is the escape hatch for a
+  // decision that is genuinely not the team's to make, and an agent that cannot
+  // ask will invent an answer instead.
+  specs.push({
+    name: 'ask_user',
+    description:
+      'Ask the human a question and WAIT for their answer. Use this only for decisions that are ' +
+      'genuinely theirs — budget, scope, brand, which market to target — not for anything you ' +
+      'could determine yourself by reading the workspace. Offer concrete options when you can; ' +
+      'it is much faster for them to pick than to type. If nobody is available you will be told ' +
+      'to decide yourself, so never block waiting a second time on the same question.',
+    inputSchema: {
+      question: z.string().min(1).describe('The question, self-contained and specific.'),
+      header: z
+        .string()
+        .optional()
+        .describe('Two or three words naming the decision, e.g. "Niche" or "Budget".'),
+      options: z
+        .array(
+          z.object({
+            label: z.string().min(1).describe('Short label for this choice.'),
+            description: z.string().optional().describe('What choosing it means.'),
+          }),
+        )
+        .optional()
+        .describe('Concrete choices. Prefer offering 2-4 over asking an open question.'),
+      allowMultiple: z.boolean().optional().describe('The human may pick more than one.'),
+      allowFreeform: z
+        .boolean()
+        .optional()
+        .describe('The human may type their own answer instead of picking. Defaults to true when there are no options.'),
+    },
+    handler: async (args) =>
+      text(
+        await host.askUser(agent, {
+          question: String(args.question),
+          header: args.header as string | undefined,
+          options: args.options as Array<{ label: string; description?: string }> | undefined,
+          allowMultiple: args.allowMultiple as boolean | undefined,
+          allowFreeform: args.allowFreeform as boolean | undefined,
+        }),
+      ),
+  });
 
   if (agent.memory.enabled) {
     specs.push({

@@ -8,6 +8,7 @@ import {
   type DashboardDto,
   type EnvironmentDto,
   type MessageDto,
+  type QuestionDto,
   type OnboardingStatusDto,
   type ProviderHealthDto,
   type RunDetailDto,
@@ -158,6 +159,12 @@ export class ApiClient {
   listApprovals = (runId?: string) => this.request<ApprovalDto[]>(routes.approvals(runId));
   decideApproval = (approvalId: string, decision: string) =>
     this.post<{ ok: boolean }>(routes.approvalDecision(), { approvalId, decision });
+
+  /** Questions an agent is blocked on, waiting for a human. */
+  listQuestions = (runId?: string) => this.request<QuestionDto[]>(routes.questions(runId));
+  /** `selected` are labels from the offered options; `text` is free-form. */
+  answerQuestion = (questionId: string, answer: { selected?: string[]; text?: string }) =>
+    this.post<{ ok: boolean }>(routes.questionAnswer(), { questionId, ...answer });
 
   /** URL of the SSE endpoint; the caller owns the `EventSource`. */
   streamUrl(): string {

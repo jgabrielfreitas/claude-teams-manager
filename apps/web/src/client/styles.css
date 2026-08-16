@@ -1305,6 +1305,125 @@ a.agent-card:hover {
   word-break: break-word;
 }
 
+/* Export controls (copy / download / preview) */
+.export-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.transcript {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.55;
+  white-space: pre;
+  overflow: auto;
+  max-height: 56vh;
+  padding: 14px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--bg-subtle);
+  color: var(--text-dim);
+}
+
+.transcript-area {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  min-height: 40vh;
+  white-space: pre;
+}
+
+/* Full-screen run */
+.fullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  background: var(--bg);
+  animation: fade 120ms var(--ease);
+}
+
+.fullscreen-head {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-subtle);
+}
+
+.fullscreen-title,
+.fullscreen-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.fullscreen-title h1 {
+  font-size: 15px;
+  min-width: 0;
+  flex: 1 1 220px;
+}
+
+.fullscreen-progress {
+  flex: 0 1 220px;
+  min-width: 140px;
+}
+
+.fullscreen-totals { margin-left: auto; }
+.fullscreen-bar .export-controls { margin-left: auto; }
+
+.fullscreen-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  padding: 0;
+}
+
+.fullscreen-body > .board,
+.fullscreen-body > .empty {
+  padding: 16px;
+}
+
+/*
+ * In the normal page these panes cap their own height and scroll internally.
+ * Full screen has exactly one scroller — the body above — so the panes give
+ * up their limits and simply grow.
+ */
+.fullscreen-body > .timeline,
+.fullscreen-body > .conversation {
+  max-height: none;
+  overflow-y: visible;
+}
+
+/* Wide rows scroll inside the view rather than pushing the page sideways. */
+.fullscreen-body .timeline-row .what,
+.fullscreen-body .task-result,
+.fullscreen-body .bubble .body {
+  overflow-x: auto;
+}
+
+.jump-latest {
+  position: absolute;
+  left: 50%;
+  bottom: 22px;
+  transform: translateX(-50%);
+  z-index: 1;
+  box-shadow: var(--shadow);
+  animation: rise 160ms var(--ease);
+}
+
 /* --------------------------------------------------------------------------
    6. Responsive
    -------------------------------------------------------------------------- */
@@ -1350,4 +1469,14 @@ a.agent-card:hover {
   .timeline-row { grid-template-columns: 62px minmax(0, 1fr); }
   .timeline-row .who { grid-column: 2; }
   .bubble { max-width: 100%; }
+}
+
+@media (max-width: 560px) {
+  .fullscreen-head { padding: 8px 10px; }
+  .fullscreen-totals,
+  .fullscreen-progress { display: none; }
+  .fullscreen-bar .export-controls { margin-left: 0; }
+  .fullscreen-body > .board { padding: 10px; }
+  .fullscreen-body > .conversation { padding: 10px; }
+  .transcript { font-size: 11px; }
 }

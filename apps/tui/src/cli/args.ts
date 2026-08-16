@@ -10,19 +10,36 @@ export interface ParsedArgs {
   db?: string;
   provider?: string;
   team?: string;
+  /** Transcript format for `run export`. Validated by the command itself. */
+  format?: string;
+  /** Destination file for `run export`; stdout when omitted. */
+  out?: string;
+  /** Include debug events in an exported transcript. */
+  debug: boolean;
   help: boolean;
   version: boolean;
   errors: string[];
 }
 
-const VALUE_FLAGS: Record<string, keyof Pick<ParsedArgs, 'db' | 'provider' | 'team'>> = {
+const VALUE_FLAGS: Record<
+  string,
+  keyof Pick<ParsedArgs, 'db' | 'provider' | 'team' | 'format' | 'out'>
+> = {
   '--db': 'db',
   '--provider': 'provider',
   '--team': 'team',
+  '--format': 'format',
+  '--out': 'out',
 };
 
 export function parseArgs(argv: string[]): ParsedArgs {
-  const result: ParsedArgs = { positional: [], help: false, version: false, errors: [] };
+  const result: ParsedArgs = {
+    positional: [],
+    debug: false,
+    help: false,
+    version: false,
+    errors: [],
+  };
 
   for (let index = 0; index < argv.length; index++) {
     const token = argv[index];
@@ -32,6 +49,10 @@ export function parseArgs(argv: string[]): ParsedArgs {
     }
     if (token === '--version' || token === '-v' || token === '-V') {
       result.version = true;
+      continue;
+    }
+    if (token === '--debug') {
+      result.debug = true;
       continue;
     }
 
@@ -66,6 +87,8 @@ export const HELP_TEXT = `claude-team — teams of Claude agents in your termina
 Usage
   claude-team                          open the full interface (runs setup on first use)
   claude-team run "<objective>"        start a run and watch it live
+  claude-team run                      list recent runs
+  claude-team run export <runId>       print the full transcript of a run
   claude-team team list                list teams
   claude-team team export <name|id>    print a team as YAML
   claude-team team import <file.yaml>  create a team from a YAML file
@@ -73,6 +96,9 @@ Usage
 
 Options
   --team <name|id>    team to use for "run"
+  --format <fmt>      transcript format for "run export": markdown (default), text, json
+  --debug             include debug events (thinking, tool traffic) in a transcript
+  --out <path>        write "run export" to a file instead of stdout
   --db <path>         SQLite file to use (default: $CLAUDE_TEAM_HOME/claude-team.db)
   --provider <id>     override the configured provider (claude, fake)
   -h, --help          show this help
@@ -84,4 +110,11 @@ Environment
 Keys inside the interface
   1-7 sections   tab panel   c create   e edit   d delete   r run   m message
   l logs   i inspect   / search   ctrl+k command palette   ? help   q quit
+
+Keys in the Runs section
+  f full screen   y copy transcript   e export transcript
+
+Keys in the full-screen run view
+  t switch tab   ↑↓ / PgUp PgDn scroll   g top   G end   f follow again
+  F cycle format   D toggle debug events   y copy   e export   esc back
 `;

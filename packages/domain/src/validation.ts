@@ -109,6 +109,15 @@ export const approvalDecisionSchema = z.object({
   decidedBy: z.string().optional(),
 });
 
+export const answerQuestionSchema = z.object({
+  questionId: z.string().min(1),
+  /** Labels chosen from the offered options. */
+  selected: z.array(z.string()).optional(),
+  /** Free-text answer, used alone or alongside a selection. */
+  text: z.string().max(20_000).optional(),
+  answeredBy: z.string().optional(),
+});
+
 export const searchSchema = z.object({
   query: z.string().trim().min(1).max(500),
   kinds: z.array(z.enum(['team', 'agent', 'run', 'task', 'message'])).optional(),
@@ -126,6 +135,8 @@ export const updateSettingsSchema = z.object({
   defaultBudget: budgetSchema.optional(),
   requireApprovalFor: z.array(z.string()).optional(),
   autoApproveAll: z.boolean().optional(),
+  autoAnswerQuestions: z.boolean().optional(),
+  questionTimeoutMs: z.number().int().min(5000).max(24 * 60 * 60 * 1000).optional(),
   maxHops: z.number().int().min(1).max(64).optional(),
   maxRecursionDepth: z.number().int().min(1).max(16).optional(),
   askTimeoutMs: z.number().int().min(1000).max(60 * 60 * 1000).optional(),
@@ -141,5 +152,6 @@ export type UpdateAgentRequest = z.infer<typeof updateAgentSchema>;
 export type StartRunRequest = z.infer<typeof startRunSchema>;
 export type SendAgentMessageRequest = z.infer<typeof sendAgentMessageSchema>;
 export type ApprovalDecisionRequest = z.infer<typeof approvalDecisionSchema>;
+export type AnswerQuestionRequest = z.infer<typeof answerQuestionSchema>;
 export type SearchRequest = z.infer<typeof searchSchema>;
 export type UpdateSettingsRequest = z.infer<typeof updateSettingsSchema>;

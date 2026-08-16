@@ -2,6 +2,7 @@ import type {
   Agent,
   AgentMessage,
   AgentStatus,
+  AgentQuestion,
   ApprovalRequest,
   Run,
   RunEvent,
@@ -24,6 +25,7 @@ export type AppEvent =
   | { type: 'agent.status'; agentId: string; status: AgentStatus }
   | { type: 'message'; message: AgentMessage }
   | { type: 'approval'; approval: ApprovalRequest }
+  | { type: 'question'; question: AgentQuestion }
   | { type: 'task.changed'; runId: string; task: Task }
   | { type: 'team.changed'; teamId: string | null }
   | { type: 'agent.changed'; agentId: string | null; teamId: string }
@@ -91,6 +93,8 @@ export function eventTouchesRun(event: AppEvent, runId: string): boolean {
       return event.message.runId === runId;
     case 'approval':
       return event.approval.runId === runId;
+    case 'question':
+      return event.question.runId === runId;
     default:
       return false;
   }

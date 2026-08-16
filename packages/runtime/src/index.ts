@@ -2,6 +2,7 @@ export * from './types.js';
 export * from './recorder.js';
 export * from './budget.js';
 export * from './approvals.js';
+export * from './questions.js';
 export * from './message-bus.js';
 export * from './prompt.js';
 export * from './tools.js';

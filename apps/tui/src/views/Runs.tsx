@@ -19,7 +19,13 @@ import {
 import { toneColor, UI } from '../theme.js';
 import { useKeys, useListNav, useLoader, windowOf } from '../lib/hooks.js';
 import { useUi } from '../store.js';
-import { messageAgent, runAction, startRun } from '../actions.js';
+import {
+  copyRunTranscript,
+  exportRunTranscript,
+  messageAgent,
+  runAction,
+  startRun,
+} from '../actions.js';
 import { TwoPane, type ViewProps } from '../components/Layout.js';
 import {
   Dim,
@@ -78,6 +84,11 @@ export function RunsView({ height, columns, narrow }: ViewProps): React.JSX.Elem
       else if (input === 'T') ui.dispatch(() => runAction(ui, 'retry'));
       else if (input === 'm') ui.dispatch(() => messageAgent(ui));
       else if (input === 'v') ui.setRunMode(ui.runMode === 'replay' ? 'live' : 'replay');
+      else if (input === 'f') {
+        if (run) ui.setRunFullScreen(true);
+        else ui.notify('Select a run first.', 'warning');
+      } else if (input === 'y') ui.dispatch(() => copyRunTranscript(ui));
+      else if (input === 'e') ui.dispatch(() => exportRunTranscript(ui));
       else if (input === 'l' || key.return) ui.setFocus('detail');
     },
     ui.lock === 'view',
@@ -273,6 +284,9 @@ function RunDetail({
             { key: 'T', label: 'retry' },
             { key: 'v', label: replay ? 'live' : 'replay' },
             ...(replay ? [{ key: '←→', label: 'step' }] : []),
+            { key: 'f', label: 'full screen' },
+            { key: 'y', label: 'copy transcript' },
+            { key: 'e', label: 'export transcript' },
             { key: 'm', label: 'message agent' },
             { key: 'r', label: 'new run' },
           ]}

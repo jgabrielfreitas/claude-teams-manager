@@ -7,7 +7,7 @@ import { App } from './App.js';
 import { UiProvider } from './store.js';
 import { RunLive } from './cli/RunLive.js';
 import { HELP_TEXT, parseArgs } from './cli/args.js';
-import { agentList, runList, teamExport, teamImport, teamList } from './cli/commands.js';
+import { agentList, runExport, runList, teamExport, teamImport, teamList } from './cli/commands.js';
 
 /**
  * Entry point for the `claude-team` binary.
@@ -171,6 +171,24 @@ async function main(): Promise<void> {
     /* ---------------- run ---------------- */
 
     if (command === 'run') {
+      // `run export <id>` before the objective: a subcommand, like `team export`.
+      if (rest[0] === 'export') {
+        if (!rest[1]) {
+          process.stderr.write(
+            'Usage: claude-team run export <runId> [--format markdown|text|json] [--debug] [--out <path>]\n',
+          );
+          await shutdown(2);
+          return;
+        }
+        process.exitCode = await runExport(core, rest[1], {
+          format: args.format,
+          includeDebug: args.debug,
+          out: args.out,
+        });
+        await shutdown(process.exitCode ?? 0);
+        return;
+      }
+
       const objective = rest.join(' ').trim();
       if (!objective) {
         if (rest.length === 0 && args.team === undefined) {

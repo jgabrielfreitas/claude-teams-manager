@@ -1,6 +1,6 @@
-import { readFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
-import type { AppCore } from '@claude-team/core';
+import { TRANSCRIPT_FORMATS, type AppCore, type TranscriptFormat } from '@claude-team/core';
 import { shortModelLabel } from '@claude-team/domain';
 import { AGENT_STATUS_UI, EFFORT_UI, RUN_STATUS_UI, formatRelative, truncate } from '@claude-team/ui-shared';
 
@@ -78,6 +78,59 @@ export async function teamImport(core: AppCore, file: string): Promise<number> {
     );
   }
   for (const warning of warnings) process.stdout.write(`  warning: ${warning}\n`);
+  return 0;
+}
+
+function isTranscriptFormat(value: string): value is TranscriptFormat {
+  return (TRANSCRIPT_FORMATS as readonly string[]).includes(value);
+}
+
+/** Writes without truncating: `process.exit` does not wait for a pipe to drain. */
+function writeOut(text: string): Promise<void> {
+  return new Promise((done) => {
+    // A closed pipe (`| head`) is a normal way to end; there is nothing to
+    // report, and rejecting here would turn it into a stack trace.
+    process.stdout.write(text, () => done());
+  });
+}
+
+/**
+ * `claude-team run export <runId>` — the whole run as one document.
+ *
+ * The text is rendered by `AppCore.exportRun`, the same call the interface and
+ * the browser use, so a transcript piped out of a script is byte-for-byte the
+ * one a colleague downloaded.
+ */
+export async function runExport(
+  core: AppCore,
+  ref: string,
+  options: { format?: string; includeDebug?: boolean; out?: string } = {},
+): Promise<number> {
+  const requested = options.format ?? 'markdown';
+  if (!isTranscriptFormat(requested)) {
+    process.stderr.write(
+      `Unknown format "${requested}". Use one of: ${TRANSCRIPT_FORMATS.join(', ')}.\n`,
+    );
+    return 2;
+  }
+
+  // Exact resolution on purpose: an export names a run in a script or an issue,
+  // and a prefix that quietly matched a different run would be worse than an
+  // error. `getRun` refuses unknown ids in the core's own words.
+  const run = await core.getRun(ref);
+  const { content, fileName } = await core.exportRun(run.id, {
+    format: requested,
+    includeDebug: Boolean(options.includeDebug),
+  });
+
+  if (options.out === undefined) {
+    await writeOut(content);
+    return 0;
+  }
+
+  const target = resolve(options.out.trim() || fileName);
+  await writeFile(target, content, 'utf8');
+  await writeOut(`${target}\n`);
   return 0;
 }
 

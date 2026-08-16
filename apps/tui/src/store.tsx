@@ -10,7 +10,7 @@ import React, {
 } from 'react';
 import { useApp } from 'ink';
 import type { AppCore } from '@claude-team/core';
-import type { AppEvent } from '@claude-team/core';
+import type { AppEvent, TranscriptFormat } from '@claude-team/core';
 import type {
   ApprovalDecision,
   ApprovalRequest,
@@ -115,6 +115,16 @@ export interface StatusLine {
   tone: Tone;
 }
 
+/**
+ * What `y` and `e` will produce. Kept next to the rest of the UI state — and
+ * not inside the full-screen view — so the footer, the copy and the export all
+ * read the same choice, and so it survives leaving the view and coming back.
+ */
+export interface TranscriptPrefs {
+  format: TranscriptFormat;
+  includeDebug: boolean;
+}
+
 export interface Ui {
   core: AppCore;
   providerId: string;
@@ -135,6 +145,15 @@ export interface Ui {
   /** Runs section: follow the live timeline, or step through it. */
   runMode: 'live' | 'replay';
   setRunMode: (mode: 'live' | 'replay') => void;
+
+  /** True while one run owns the whole terminal (no list, no side panel). */
+  runFullScreen: boolean;
+  setRunFullScreen: (value: boolean) => void;
+
+  /** Format and detail used by the copy and export actions. */
+  transcript: TranscriptPrefs;
+  setTranscriptFormat: (format: TranscriptFormat) => void;
+  setTranscriptIncludeDebug: (value: boolean) => void;
 
   /** True while the onboarding wizard owns the screen. */
   onboarding: boolean;
@@ -247,6 +266,12 @@ export function UiProvider({
   const [focus, setFocus] = useState<'list' | 'detail'>('list');
   const [overlay, setOverlay] = useState<Overlay>(null);
   const [runMode, setRunMode] = useState<'live' | 'replay'>('live');
+  const [runFullScreen, setRunFullScreen] = useState(false);
+  const [transcript, setTranscript] = useState<TranscriptPrefs>({
+    // The default the core itself uses; debug events stay out until asked for.
+    format: 'markdown',
+    includeDebug: false,
+  });
   const [onboarding, setOnboarding] = useState(initialOnboarding);
   const [status, setStatus] = useState<StatusLine | undefined>();
   const [revs, setRevs] = useState<Record<RevKey, number>>(ZERO_REVS);
@@ -406,6 +431,14 @@ export function UiProvider({
     setFocus((prev) => (prev === 'list' ? 'detail' : 'list'));
   }, []);
 
+  const setTranscriptFormat = useCallback((format: TranscriptFormat) => {
+    setTranscript((prev) => ({ ...prev, format }));
+  }, []);
+
+  const setTranscriptIncludeDebug = useCallback((includeDebug: boolean) => {
+    setTranscript((prev) => ({ ...prev, includeDebug }));
+  }, []);
+
   const quit = useCallback(() => {
     app.exit();
   }, [app]);
@@ -434,6 +467,11 @@ export function UiProvider({
       setOverlay,
       runMode,
       setRunMode,
+      runFullScreen,
+      setRunFullScreen,
+      transcript,
+      setTranscriptFormat,
+      setTranscriptIncludeDebug,
       onboarding,
       setOnboarding,
       lock,
@@ -459,6 +497,10 @@ export function UiProvider({
       toggleFocus,
       overlay,
       runMode,
+      runFullScreen,
+      transcript,
+      setTranscriptFormat,
+      setTranscriptIncludeDebug,
       onboarding,
       lock,
       status,

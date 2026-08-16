@@ -27,6 +27,7 @@ export const ids = {
   message: () => newId('msg'),
   event: () => newId('evt'),
   approval: () => newId('apr'),
+  question: () => newId('qst'),
   uuid: () => webCrypto.randomUUID(),
 };
 

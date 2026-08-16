@@ -415,6 +415,56 @@ export interface ApprovalRequest {
 }
 
 /* ------------------------------------------------------------------ *
+ * Questions to the human
+ * ------------------------------------------------------------------ */
+
+export const QUESTION_STATUSES = ['pending', 'answered', 'expired', 'skipped'] as const;
+export type QuestionStatus = (typeof QUESTION_STATUSES)[number];
+
+export interface QuestionOption {
+  label: string;
+  /** What choosing this means, shown under the label. */
+  description?: string;
+}
+
+/**
+ * An agent asking the *human* something it cannot decide alone.
+ *
+ * Deliberately distinct from `ApprovalRequest`: an approval answers "may I do
+ * this?" with yes/no, while a question answers "which of these?" or "what
+ * should it be?" and returns content the agent then works from. Routing one
+ * through the other — which is what happens when a provider's built-in
+ * ask-the-user tool is mistaken for an unknown capability — grants permission
+ * without ever delivering an answer, and the agent stalls.
+ */
+export interface AgentQuestion {
+  id: string;
+  runId: string;
+  agentId: string;
+
+  /** Short label for the decision, e.g. "Niche". */
+  header?: string;
+  question: string;
+  options: QuestionOption[];
+  /** The human may pick more than one option. */
+  allowMultiple: boolean;
+  /** The human may type an answer instead of picking. */
+  allowFreeform: boolean;
+
+  /** Task the agent was working on when it asked, when applicable. */
+  taskId?: string;
+
+  status: QuestionStatus;
+  /** What was sent back to the agent. */
+  answer?: string;
+  answeredBy?: string;
+
+  createdAt: Date;
+  answeredAt?: Date;
+  expiresAt?: Date;
+}
+
+/* ------------------------------------------------------------------ *
  * Settings
  * ------------------------------------------------------------------ */
 
@@ -439,6 +489,14 @@ export interface AppSettings {
   requireApprovalFor: string[];
   /** When true, no approval prompts are raised (dangerous, opt-in). */
   autoApproveAll: boolean;
+  /**
+   * When true, an agent's question to the human is answered automatically with
+   * an instruction to decide and state the assumption, instead of blocking.
+   * Together with `autoApproveAll` this is what the UIs call "auto mode".
+   */
+  autoAnswerQuestions: boolean;
+  /** How long a question waits for a human before it is auto-answered. */
+  questionTimeoutMs: number;
   /** Max agent-to-agent hops before the bus refuses to deliver. */
   maxHops: number;
   /** Max depth of nested synchronous asks. */

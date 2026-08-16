@@ -22,6 +22,7 @@ import {
 import { approvalCategoryFor, type AgentProvider } from '@claude-team/provider';
 import type { Storage } from '@claude-team/persistence';
 import { ApprovalGate } from './approvals.js';
+import { QuestionGate } from './questions.js';
 import { BudgetTracker } from './budget.js';
 import { MessageBus, Mutex } from './message-bus.js';
 import { EventRecorder } from './recorder.js';
@@ -53,6 +54,7 @@ export class RunEngine implements ToolHost {
   private readonly recorder: EventRecorder;
   private readonly bus: MessageBus;
   private readonly gate: ApprovalGate;
+  private readonly questions: QuestionGate;
   private readonly budget: BudgetTracker;
 
   private readonly abort = new AbortController();
@@ -102,6 +104,12 @@ export class RunEngine implements ToolHost {
       onApproval: deps.onApproval,
     });
 
+    this.questions = new QuestionGate(run.id, deps.storage, this.recorder, {
+      autoAnswer: options.autoAnswerQuestions,
+      timeoutMs: options.questionTimeoutMs,
+      onQuestion: deps.onQuestion,
+    });
+
     this.bus = new MessageBus(
       run.id,
       deps.storage,
@@ -140,6 +148,14 @@ export class RunEngine implements ToolHost {
 
   resolveApproval(approvalId: string, decision: ApprovalDecision, decidedBy?: string): boolean {
     return this.gate.resolve(approvalId, decision, decidedBy);
+  }
+
+  pendingQuestions() {
+    return this.questions.listPending();
+  }
+
+  answerQuestion(questionId: string, answer: string, answeredBy?: string): boolean {
+    return this.questions.answer(questionId, answer, answeredBy);
   }
 
   /* ---------------------------------------------------------------- *
@@ -188,6 +204,7 @@ export class RunEngine implements ToolHost {
       }
     } finally {
       await this.gate.abandonAll('The run ended.');
+      await this.questions.abandonAll('The run ended before you answered.');
       await this.resetAgentStatuses();
     }
 
@@ -213,6 +230,7 @@ export class RunEngine implements ToolHost {
     this.pauseGate = undefined;
     this.abort.abort();
     await this.gate.abandonAll('The run was cancelled.');
+    await this.questions.abandonAll('The run was cancelled before you answered.');
   }
 
   private async loop(): Promise<void> {
@@ -825,6 +843,36 @@ export class RunEngine implements ToolHost {
           `#${m.seq} from ${this.handleOf(m.from)} (${m.type}):\n${m.content}`,
       )
       .join('\n\n---\n\n');
+  }
+
+  async askUser(
+    agent: Agent,
+    args: {
+      question: string;
+      header?: string;
+      options?: Array<{ label: string; description?: string }>;
+      allowMultiple?: boolean;
+      allowFreeform?: boolean;
+    },
+  ): Promise<string> {
+    const task = this.tasks.find(
+      (t) => t.assignedAgentId === agent.id && (t.status === 'running' || t.status === 'review'),
+    );
+    await this.setAgentStatus(agent, 'waiting');
+    try {
+      return await this.questions.ask({
+        agentId: agent.id,
+        agentHandle: agent.handle,
+        question: args.question,
+        header: args.header,
+        options: args.options,
+        allowMultiple: args.allowMultiple,
+        allowFreeform: args.allowFreeform,
+        taskId: task?.id,
+      });
+    } finally {
+      await this.setAgentStatus(agent, 'working');
+    }
   }
 
   async remember(agent: Agent, note: string): Promise<string> {

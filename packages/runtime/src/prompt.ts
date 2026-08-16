@@ -89,6 +89,11 @@ export function buildSystemPrompt(ctx: PromptContext): string {
     'Use `ask_agent` when you genuinely cannot continue without their answer — it blocks you until they reply.',
     'Use `check_inbox` to read messages that arrived for you.',
     'Do not ask a teammate for something you can determine yourself.',
+    '',
+    'Use `ask_user` when a decision is genuinely the human\'s — scope, budget, brand, which',
+    'market to target. Offer 2-4 concrete options whenever you can; picking is far faster',
+    'for them than typing. If nobody is available you will be told to decide yourself: do',
+    'that, state the assumption plainly, and never ask the same thing twice.',
   ];
   if (agent.communicationRules.trim()) commRules.unshift(agent.communicationRules.trim());
   sections.push(section('Communicating with your team', commRules));

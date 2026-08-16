@@ -2,17 +2,11 @@ import React, { useEffect, useState } from 'react';
 import { Box, Text } from 'ink';
 import TextInput from 'ink-text-input';
 import type { SearchHit } from '@claude-team/core';
-import {
-  COMMANDS,
-  KEY_LEGEND,
-  SECTIONS,
-  availableCommands,
-  filterCommands,
-  truncate,
-} from '@claude-team/ui-shared';
+import { KEY_LEGEND, SECTIONS, filterCommands, truncate } from '@claude-team/ui-shared';
 import { toneColor, UI } from '../theme.js';
 import { errorMessage, useKeys, useRawMode, windowOf } from '../lib/hooks.js';
 import { useUi } from '../store.js';
+import { ALL_COMMANDS, allAvailableCommands } from '../commands.js';
 import { executeCommand } from '../actions.js';
 import { Dim, KeyHints, ListRow, MoreRow } from './ui.js';
 
@@ -48,7 +42,7 @@ function CommandPalette(): React.JSX.Element {
   const typing = useRawMode();
 
   const commands = filterCommands(
-    availableCommands({
+    allAvailableCommands({
       team: Boolean(ui.selection.teamId),
       agent: Boolean(ui.selection.agentId),
       run: Boolean(ui.selection.runId),
@@ -83,7 +77,7 @@ function CommandPalette(): React.JSX.Element {
   const { slice, offset } = windowOf(commands, cursor, OVERLAY_HEIGHT);
 
   return (
-    <Frame title={`Command palette  ${COMMANDS.length} commands`}>
+    <Frame title={`Command palette  ${ALL_COMMANDS.length} commands`}>
       <Box>
         <Text color={UI.accent}>› </Text>
         <TextInput value={query} onChange={setQuery} placeholder="type to filter…" focus={active && typing} />
@@ -248,7 +242,7 @@ function HelpOverlay(): React.JSX.Element {
   useKeys(() => ui.setOverlay(null), ui.lock === 'overlay');
 
   const groups = new Map<string, string[]>();
-  for (const command of COMMANDS) {
+  for (const command of ALL_COMMANDS) {
     if (!command.key) continue;
     const list = groups.get(command.group) ?? [];
     list.push(`${command.key.padEnd(6)} ${command.title}`);
