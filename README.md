@@ -84,8 +84,9 @@ pnpm web -- --provider fake
 Verify your real Claude connection end to end at any time:
 
 ```bash
-pnpm smoke                      # one agent, reads a file, reports back (~$0.06)
-pnpm tsx scripts/smoke-team.ts  # two agents, real delegation (~$0.50)
+pnpm smoke            # one agent reads a file and reports back              (~$0.06)
+pnpm smoke:team       # a real orchestrator delegating to a real worker      (~$0.26)
+pnpm smoke:question   # a real agent asking you a question, and using the answer (~$0.27)
 ```
 
 ---
