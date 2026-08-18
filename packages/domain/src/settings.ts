@@ -1,3 +1,4 @@
+import { DEFAULT_BUDGET } from './budget.js';
 import { DEFAULT_EFFORT } from './effort.js';
 import { DEFAULT_MODEL, DEFAULT_ORCHESTRATOR_MODEL } from './models.js';
 import { DEFAULT_ROUTING_LIMITS } from './routing.js';
@@ -10,12 +11,7 @@ export function defaultSettings(now = new Date()): AppSettings {
     defaultOrchestratorModel: DEFAULT_ORCHESTRATOR_MODEL,
     defaultEffort: DEFAULT_EFFORT,
     provider: 'claude',
-    defaultBudget: {
-      maxTokens: 2_000_000,
-      maxCostUsd: 20,
-      maxDurationMinutes: 60,
-      maxAgentActivations: 60,
-    },
+    defaultBudget: { ...DEFAULT_BUDGET },
     requireApprovalFor: ['shell', 'destructive', 'git'],
     autoApproveAll: false,
     localSetup: { ...ISOLATED_SETUP },

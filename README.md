@@ -592,7 +592,33 @@ limits:
 ```
 
 Budgets are checked before an activation is dispatched and after it returns, so
-an over-spend stops the run immediately. You get warnings at 50%, 80% and 95%.
+an over-spend stops the run immediately. You get warnings at 50%, 80% and 95%,
+and the warning names the limit it is about — your time limit, your interaction
+limit, or your money.
+
+### Running unmetered
+
+Some work is worth whatever it costs, and guessing a number in advance only
+interrupts it halfway. A team can run with **no token cap and no cost cap** —
+one switch in Settings (application default), on a team, in the TUI under
+`Budget`:
+
+```yaml
+budget:
+  maxDurationMinutes: 240      # the run still stops
+  maxAgentActivations: 200     # and still stops
+```
+
+Spend caps are optional; **a stop condition is not**. A budget with neither a
+token cap, a cost cap, a time limit nor an interaction limit is refused — by the
+form, by the HTTP API and by YAML import, because a run with nothing to stop it
+is not a configuration anyone means to write. Time and interactions are exactly
+the two limits that still hold, and turning metering on brings back the token
+and cost caps you had.
+
+Related, and easy to confuse: a team with **no budget at all** does not run
+unmetered. It means "use the application default", which is resolved when the
+run starts.
 
 ---
 
@@ -628,7 +654,7 @@ Settings (edit in the Settings section of either UI):
 | `defaultWorkspace` | Suggested workspace for new teams |
 | `teamsDir` | Where team YAML is mirrored (default `~/.claude-team/teams`) |
 | `provider` | `claude` or `fake` |
-| `defaultBudget` | Applied to teams that define none |
+| `defaultBudget` | Applied to teams that define none; may be unmetered |
 | `requireApprovalFor` | Categories that always need a human |
 | `autoApproveAll` | Skip every prompt (dangerous, opt-in) |
 | `localSetup` | How much of your own Claude Code installation agents inherit |
@@ -782,7 +808,7 @@ pnpm web -- --provider fake
 pnpm test
 ```
 
-226 tests, none of which touch the Claude API:
+238 tests, none of which touch the Claude API:
 
 - **Domain** — agent and team creation, handle uniqueness, cloning semantics,
   effort coercion, capability resolution, destructive-command detection, message
@@ -868,8 +894,10 @@ in the TUI, the modal in the web UI, or the Pending Approvals card on the
 dashboard.
 
 **The run stopped with "budget exhausted".**
-Raise the budget on the team, or per run when starting it. Totals for the run
-are on the run page.
+Raise the budget on the team, or per run when starting it — the message names
+which limit ran out. If cost is not the constraint for this team, run it
+unmetered and keep only the time and interaction limits (see *Running
+unmetered*). Totals for the run are on the run page.
 
 **A run was interrupted by a restart.**
 It is marked `paused`, with its history intact. Resume it or cancel it

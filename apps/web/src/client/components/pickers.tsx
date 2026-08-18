@@ -2,7 +2,12 @@ import { useEffect, useState } from 'react';
 import {
   PERMISSION_MODES,
   TOOL_GROUPS,
+  DEFAULT_BUDGET,
+  budgetProblem,
+  isUnmetered,
   permissionMode,
+  unmetered,
+  type Budget,
   type AgentEffort,
   type PermissionMode,
   type ToolGroupId,
@@ -207,5 +212,125 @@ export function PermissionEditor({
         </div>
       ))}
     </div>
+  );
+}
+
+
+/* ------------------------------------------------------------------ *
+ * Budget
+ * ------------------------------------------------------------------ */
+
+/**
+ * The one budget editor, used wherever a budget is set: application defaults,
+ * a team, or a single run.
+ *
+ * Its point is the switch. Running **unmetered** — no token cap, no money cap
+ * — is a deliberate choice for work that is worth whatever it costs, and it
+ * has to be one control rather than "remember to clear these two fields". What
+ * it never does is remove the stop conditions: the time and interaction limits
+ * stay, and the domain refuses a budget that has neither.
+ */
+export function BudgetFields({
+  budget,
+  onChange,
+  idPrefix = 'budget',
+}: {
+  budget: Budget;
+  onChange: (budget: Budget) => void;
+  idPrefix?: string;
+}) {
+  const unmeteredNow = isUnmetered(budget);
+  const problem = budgetProblem(budget);
+
+  const setField = (key: keyof Budget, raw: string) =>
+    onChange({ ...budget, [key]: raw === '' ? undefined : Number(raw) });
+
+  const toggleUnmetered = (on: boolean) =>
+    onChange(
+      on
+        ? unmetered(budget)
+        : {
+            ...budget,
+            maxTokens: budget.maxTokens ?? DEFAULT_BUDGET.maxTokens,
+            maxCostUsd: budget.maxCostUsd ?? DEFAULT_BUDGET.maxCostUsd,
+          },
+    );
+
+  return (
+    <>
+      <button
+        type="button"
+        className={`auto-mode auto-mode-block auto-mode-${unmeteredNow ? 'on' : 'off'}`}
+        aria-pressed={unmeteredNow}
+        onClick={() => toggleUnmetered(!unmeteredNow)}
+      >
+        <span className="auto-mode-switch" aria-hidden>
+          <span className="auto-mode-knob" />
+        </span>
+        <span className="col" style={{ gap: 2, minWidth: 0, textAlign: 'left' }}>
+          <span className="strong">Unmetered — no token or cost cap</span>
+          <span className="tiny muted">
+            The run stops on time and on the number of agent interactions, not on what it spent.
+          </span>
+        </span>
+        <span className="auto-mode-state right">{unmeteredNow ? 'on' : 'off'}</span>
+      </button>
+
+      <div className="form-grid" style={{ marginTop: 12 }}>
+        {!unmeteredNow && (
+          <>
+            <Field label="Max tokens per run">
+              <input
+                id={`${idPrefix}-tokens`}
+                className="input"
+                type="number"
+                min={1}
+                value={budget.maxTokens ?? ''}
+                onChange={(event) => setField('maxTokens', event.target.value)}
+              />
+            </Field>
+            <Field label="Max cost per run (USD)">
+              <input
+                id={`${idPrefix}-cost`}
+                className="input"
+                type="number"
+                min={0}
+                step={0.5}
+                value={budget.maxCostUsd ?? ''}
+                onChange={(event) => setField('maxCostUsd', event.target.value)}
+              />
+            </Field>
+          </>
+        )}
+        <Field
+          label="Max duration (minutes)"
+          hint={unmeteredNow ? 'One of the two things that still stops the run.' : undefined}
+        >
+          <input
+            id={`${idPrefix}-minutes`}
+            className="input"
+            type="number"
+            min={1}
+            value={budget.maxDurationMinutes ?? ''}
+            onChange={(event) => setField('maxDurationMinutes', event.target.value)}
+          />
+        </Field>
+        <Field
+          label="Max agent interactions"
+          hint={unmeteredNow ? 'The other one. Each activation of an agent counts.' : undefined}
+        >
+          <input
+            id={`${idPrefix}-activations`}
+            className="input"
+            type="number"
+            min={1}
+            value={budget.maxAgentActivations ?? ''}
+            onChange={(event) => setField('maxAgentActivations', event.target.value)}
+          />
+        </Field>
+      </div>
+
+      {problem && <div className="error-box" style={{ marginTop: 10 }}>{problem}</div>}
+    </>
   );
 }

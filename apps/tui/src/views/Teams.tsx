@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { Box, Text } from 'ink';
-import type { TeamWithAgents } from '@claude-team/domain';
+import { describeBudget, type TeamWithAgents } from '@claude-team/domain';
 import { formatRelative, truncate } from '@claude-team/ui-shared';
 import { toneColor, UI } from '../theme.js';
 import { useKeys, useListNav, useLoader, windowOf } from '../lib/hooks.js';
@@ -141,15 +141,7 @@ export function TeamsView({ height, columns, narrow }: ViewProps): React.JSX.Ele
         label="budget"
         value={
           team.budget
-            ? [
-                team.budget.maxCostUsd !== undefined ? `$${team.budget.maxCostUsd}` : undefined,
-                team.budget.maxTokens !== undefined ? `${team.budget.maxTokens} tok` : undefined,
-                team.budget.maxDurationMinutes !== undefined
-                  ? `${team.budget.maxDurationMinutes}min`
-                  : undefined,
-              ]
-                .filter(Boolean)
-                .join(' · ')
+            ? describeBudget(team.budget)
             : 'inherits settings'
         }
       />

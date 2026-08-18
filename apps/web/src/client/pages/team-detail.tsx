@@ -1,11 +1,18 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import type { AgentEffort } from '@claude-team/domain';
+import {
+  DEFAULT_BUDGET,
+  budgetProblem,
+  describeBudget,
+  isUnmetered,
+  type AgentEffort,
+  type Budget,
+} from '@claude-team/domain';
 import type { TeamWithAgentsDto } from '@claude-team/protocol';
 import { formatRelative, truncate } from '@claude-team/ui-shared';
 import { client } from '../api';
 import { AgentCard } from '../components/agent-views';
-import { EffortSelect, ModelSelect, WorkspaceField } from '../components/pickers';
+import { BudgetFields, EffortSelect, ModelSelect, WorkspaceField } from '../components/pickers';
 import { Async, Card, EmptyState, Field, Modal, StatusPill } from '../components/ui';
 import { useResource } from '../hooks/use-resource';
 import { runStatusUi } from '../lib/tone';
@@ -178,18 +185,10 @@ export function TeamDetailPage() {
                     </Row>
                   )}
                   <Row label="Budget">
-                    <span className="small muted">
-                      {data.budget
-                        ? [
-                            data.budget.maxTokens && `${data.budget.maxTokens.toLocaleString()} tokens`,
-                            data.budget.maxCostUsd && `$${data.budget.maxCostUsd}`,
-                            data.budget.maxDurationMinutes && `${data.budget.maxDurationMinutes} min`,
-                            data.budget.maxAgentActivations &&
-                              `${data.budget.maxAgentActivations} activations`,
-                          ]
-                            .filter(Boolean)
-                            .join(' · ')
-                        : 'app default'}
+                    <span
+                      className={`small ${isUnmetered(data.budget) ? 'tone-text tone-warning' : 'muted'}`}
+                    >
+                      {describeBudget(data.budget)}
                     </span>
                   </Row>
                   <Row label="Created">
@@ -261,16 +260,9 @@ function EditTeamDialog({
   const [name, setName] = useState(team.name);
   const [description, setDescription] = useState(team.description ?? '');
   const [workspace, setWorkspace] = useState(team.workspace ?? '');
-  const [budget, setBudget] = useState({
-    maxTokens: team.budget?.maxTokens ?? '',
-    maxCostUsd: team.budget?.maxCostUsd ?? '',
-    maxDurationMinutes: team.budget?.maxDurationMinutes ?? '',
-    maxAgentActivations: team.budget?.maxAgentActivations ?? '',
-  });
+  const [budget, setBudget] = useState<Budget>(team.budget ?? { ...DEFAULT_BUDGET });
   const [busy, setBusy] = useState(false);
-
-  const numeric = (value: string | number) =>
-    value === '' || value === undefined ? undefined : Number(value);
+  const budgetIssue = budgetProblem(budget);
 
   const save = async () => {
     setBusy(true);
@@ -279,12 +271,7 @@ function EditTeamDialog({
         name,
         description: description || null,
         workspace: workspace || null,
-        budget: {
-          maxTokens: numeric(budget.maxTokens),
-          maxCostUsd: numeric(budget.maxCostUsd),
-          maxDurationMinutes: numeric(budget.maxDurationMinutes),
-          maxAgentActivations: numeric(budget.maxAgentActivations),
-        },
+        budget,
       });
       onSaved();
       onClose();
@@ -301,7 +288,12 @@ function EditTeamDialog({
           <button type="button" className="btn" onClick={onClose}>
             Cancel
           </button>
-          <button type="button" className="btn btn-primary" disabled={busy} onClick={() => void save()}>
+          <button
+            type="button"
+            className="btn btn-primary"
+            disabled={busy || Boolean(budgetIssue)}
+            onClick={() => void save()}
+          >
             Save
           </button>
         </>
@@ -320,26 +312,7 @@ function EditTeamDialog({
       <WorkspaceField value={workspace} onChange={setWorkspace} />
 
       <span className="label">Budget</span>
-      <div className="form-grid">
-        {(
-          [
-            ['maxTokens', 'Max tokens'],
-            ['maxCostUsd', 'Max cost (USD)'],
-            ['maxDurationMinutes', 'Max minutes'],
-            ['maxAgentActivations', 'Max activations'],
-          ] as const
-        ).map(([key, label]) => (
-          <Field key={key} label={label}>
-            <input
-              className="input"
-              type="number"
-              min={0}
-              value={budget[key]}
-              onChange={(event) => setBudget({ ...budget, [key]: event.target.value })}
-            />
-          </Field>
-        ))}
-      </div>
+      <BudgetFields budget={budget} onChange={setBudget} idPrefix="team-budget" />
     </Modal>
   );
 }

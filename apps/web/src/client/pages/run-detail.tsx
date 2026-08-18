@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { availableRunActions, formatUsd, type RunAction } from '@claude-team/domain';
+import {
+  availableRunActions,
+  describeBudget,
+  isUnmetered,
+  type RunAction,
+} from '@claude-team/domain';
 import type { RunDetailDto } from '@claude-team/protocol';
 import { formatDuration, formatRelative, runDurationMs } from '@claude-team/ui-shared';
 import { client } from '../api';
@@ -370,9 +375,9 @@ export function RunDetailPage() {
                       <span className="mono truncate">{data.run.workspace ?? '—'}</span>
                     </div>
                     <div className="spread">
-                      <span className="muted">Budget cost cap</span>
-                      <span>
-                        {data.run.budget?.maxCostUsd ? formatUsd(data.run.budget.maxCostUsd) : '—'}
+                      <span className="muted">Budget</span>
+                      <span className={isUnmetered(data.run.budget) ? 'tone-text tone-warning' : undefined}>
+                        {describeBudget(data.run.budget)}
                       </span>
                     </div>
                     {data.run.retryOfRunId && (

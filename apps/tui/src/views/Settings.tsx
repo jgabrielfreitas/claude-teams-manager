@@ -4,16 +4,16 @@ import {
   APPROVAL_CATEGORIES,
   APPROVAL_CATEGORY_LABELS,
   ISOLATED_SETUP,
+  describeBudget,
   isIsolatedSetup,
   type AppSettings,
-  type Budget,
   type ClaudeSettingSource,
 } from '@claude-team/domain';
 import { EFFORT_UI, formatDuration, formatRelative } from '@claude-team/ui-shared';
 import { toneColor, UI } from '../theme.js';
 import { useKeys, useListNav, useLoader, windowOf } from '../lib/hooks.js';
 import { useUi, type Ui } from '../store.js';
-import { checkProvider } from '../actions.js';
+import { checkProvider, editBudget } from '../actions.js';
 import { TwoPane, type ViewProps } from '../components/Layout.js';
 import {
   Dim,
@@ -34,10 +34,6 @@ type Row = {
   help: string;
   edit: (ui: Ui, settings: AppSettings) => Promise<void>;
 };
-
-const budgetPatch = (settings: AppSettings, patch: Partial<Budget>) => ({
-  defaultBudget: { ...settings.defaultBudget, ...patch },
-});
 
 async function editNumber(
   ui: Ui,
@@ -392,40 +388,12 @@ const ROWS: Row[] = [
     },
   },
   {
-    id: 'maxCostUsd',
-    label: 'Budget · max cost',
-    value: (s) => (s.defaultBudget.maxCostUsd !== undefined ? `$${s.defaultBudget.maxCostUsd}` : '—'),
-    help: 'A run stops when it costs more than this.',
+    id: 'budget',
+    label: 'Budget',
+    value: (s) => describeBudget(s.defaultBudget),
+    help: "What stops a run. A budget can be unmetered — no token cap and no money cap, for work that is worth whatever it costs — but it always keeps a way to stop: minutes, agent interactions, or both.",
     edit: (ui, s) =>
-      editNumber(ui, 'Max cost (USD)', s.defaultBudget.maxCostUsd, (v) => budgetPatch(s, { maxCostUsd: v })),
-  },
-  {
-    id: 'maxTokens',
-    label: 'Budget · max tokens',
-    value: (s) => s.defaultBudget.maxTokens?.toLocaleString() ?? '—',
-    help: 'A run stops after this many tokens.',
-    edit: (ui, s) =>
-      editNumber(ui, 'Max tokens', s.defaultBudget.maxTokens, (v) => budgetPatch(s, { maxTokens: v })),
-  },
-  {
-    id: 'maxDurationMinutes',
-    label: 'Budget · max minutes',
-    value: (s) => s.defaultBudget.maxDurationMinutes?.toString() ?? '—',
-    help: 'Wall-clock limit for a run.',
-    edit: (ui, s) =>
-      editNumber(ui, 'Max duration (minutes)', s.defaultBudget.maxDurationMinutes, (v) =>
-        budgetPatch(s, { maxDurationMinutes: v }),
-      ),
-  },
-  {
-    id: 'maxAgentActivations',
-    label: 'Budget · max activations',
-    value: (s) => s.defaultBudget.maxAgentActivations?.toString() ?? '—',
-    help: 'Circuit breaker on how many times agents may run.',
-    edit: (ui, s) =>
-      editNumber(ui, 'Max agent activations', s.defaultBudget.maxAgentActivations, (v) =>
-        budgetPatch(s, { maxAgentActivations: v }),
-      ),
+      editBudget(ui, s.defaultBudget, (defaultBudget) => ui.core.updateSettings({ defaultBudget })),
   },
   {
     id: 'maxHops',

@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { AGENT_EFFORTS } from './effort.js';
 import { PERMISSION_MODES, TOOL_GROUPS } from './permissions.js';
 import { AGENT_STATUSES, CLAUDE_SETTING_SOURCES, MESSAGE_TYPES } from './entities.js';
+import { budgetProblem } from './budget.js';
 
 /**
  * Input schemas shared by every entry point (TUI prompts, HTTP handlers, YAML
@@ -20,12 +21,22 @@ export const agentLimitsSchema = z.object({
   maxMessages: z.number().int().min(1).max(10_000).optional(),
 });
 
-export const budgetSchema = z.object({
-  maxTokens: z.number().int().min(1).optional(),
-  maxCostUsd: z.number().min(0).optional(),
-  maxDurationMinutes: z.number().min(1).optional(),
-  maxAgentActivations: z.number().int().min(1).optional(),
-});
+/**
+ * Every field is optional — leaving the token and cost caps out is how a team
+ * says "run unmetered" — but the result still has to stop somewhere, which is
+ * what the refinement enforces. See `budgetProblem`.
+ */
+export const budgetSchema = z
+  .object({
+    maxTokens: z.number().int().min(1).optional(),
+    maxCostUsd: z.number().min(0).optional(),
+    maxDurationMinutes: z.number().min(1).optional(),
+    maxAgentActivations: z.number().int().min(1).optional(),
+  })
+  .superRefine((budget, ctx) => {
+    const problem = budgetProblem(budget);
+    if (problem) ctx.addIssue({ code: 'custom', message: problem });
+  });
 
 export const createTeamSchema = z.object({
   name: z.string().trim().min(1, 'Team name is required').max(120),

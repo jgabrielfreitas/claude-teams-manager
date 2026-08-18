@@ -3,6 +3,7 @@ export * from './errors.js';
 export * from './effort.js';
 export * from './models.js';
 export * from './permissions.js';
+export * from './budget.js';
 export * from './entities.js';
 export * from './factories.js';
 export * from './dag.js';

@@ -10,7 +10,7 @@ import {
 import type { ProviderHealthDto, SettingsDto } from '@claude-team/protocol';
 import { formatRelative, truncate } from '@claude-team/ui-shared';
 import { client } from '../api';
-import { EffortSelect, ModelSelect, WorkspaceField } from '../components/pickers';
+import { BudgetFields, EffortSelect, ModelSelect, WorkspaceField } from '../components/pickers';
 import { Card, Field, Segmented } from '../components/ui';
 import { useResource } from '../hooks/use-resource';
 import { AUTO_MODE_CONSEQUENCE } from '../state/auto-mode';
@@ -38,15 +38,6 @@ function SettingsForm({ settings }: { settings: SettingsDto }) {
 
   const set = <K extends keyof SettingsDto>(key: K, value: SettingsDto[K]) =>
     setForm((current) => ({ ...current, [key]: value }));
-
-  const setBudget = (key: keyof SettingsDto['defaultBudget'], value: string) =>
-    setForm((current) => ({
-      ...current,
-      defaultBudget: {
-        ...current.defaultBudget,
-        [key]: value === '' ? undefined : Number(value),
-      },
-    }));
 
   // Auto mode is one idea made of two settings; the master switch moves the
   // pair, and the individual boxes below stay available for anyone who really
@@ -165,45 +156,10 @@ function SettingsForm({ settings }: { settings: SettingsDto }) {
           </Card>
 
           <Card title="Run guardrails">
-            <div className="form-grid">
-              <Field label="Max tokens per run">
-                <input
-                  className="input"
-                  type="number"
-                  min={1}
-                  value={form.defaultBudget.maxTokens ?? ''}
-                  onChange={(event) => setBudget('maxTokens', event.target.value)}
-                />
-              </Field>
-              <Field label="Max cost per run (USD)">
-                <input
-                  className="input"
-                  type="number"
-                  min={0}
-                  step={0.5}
-                  value={form.defaultBudget.maxCostUsd ?? ''}
-                  onChange={(event) => setBudget('maxCostUsd', event.target.value)}
-                />
-              </Field>
-              <Field label="Max duration (minutes)">
-                <input
-                  className="input"
-                  type="number"
-                  min={1}
-                  value={form.defaultBudget.maxDurationMinutes ?? ''}
-                  onChange={(event) => setBudget('maxDurationMinutes', event.target.value)}
-                />
-              </Field>
-              <Field label="Max agent activations">
-                <input
-                  className="input"
-                  type="number"
-                  min={1}
-                  value={form.defaultBudget.maxAgentActivations ?? ''}
-                  onChange={(event) => setBudget('maxAgentActivations', event.target.value)}
-                />
-              </Field>
-            </div>
+            <BudgetFields
+              budget={form.defaultBudget}
+              onChange={(defaultBudget) => set('defaultBudget', defaultBudget)}
+            />
 
             <hr />
 

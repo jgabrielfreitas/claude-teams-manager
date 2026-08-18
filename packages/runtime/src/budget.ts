@@ -99,23 +99,49 @@ export class BudgetTracker {
 
   /** Fraction of the tightest configured limit already consumed, 0..1. */
   pressure(now = Date.now()): number {
+    return this.tightest(now).ratio;
+  }
+
+  /**
+   * The limit closest to being reached, and what it is.
+   *
+   * The name matters in the warning: an unmetered run has no money limit at
+   * all, so telling someone they have "used 80% of their budget" would be
+   * describing a cap that does not exist. It is 80% of their *time*, or of
+   * their agent interactions, and the warning says which.
+   */
+  private tightest(now = Date.now()): { ratio: number; limit: string } {
     const b = this.budget;
-    if (!b) return 0;
-    const ratios: number[] = [];
-    if (b.maxTokens) ratios.push(totalTokens(this.usage) / b.maxTokens);
-    if (b.maxCostUsd) ratios.push(this.costUsd / b.maxCostUsd);
-    if (b.maxDurationMinutes) ratios.push(this.elapsedMs(now) / (b.maxDurationMinutes * 60_000));
-    if (b.maxAgentActivations) ratios.push(this.activations / b.maxAgentActivations);
-    return ratios.length ? Math.min(1, Math.max(...ratios)) : 0;
+    if (!b) return { ratio: 0, limit: 'budget' };
+
+    const candidates: Array<{ ratio: number; limit: string }> = [];
+    if (b.maxTokens) candidates.push({ ratio: totalTokens(this.usage) / b.maxTokens, limit: 'token budget' });
+    if (b.maxCostUsd) candidates.push({ ratio: this.costUsd / b.maxCostUsd, limit: 'cost budget' });
+    if (b.maxDurationMinutes) {
+      candidates.push({
+        ratio: this.elapsedMs(now) / (b.maxDurationMinutes * 60_000),
+        limit: 'time limit',
+      });
+    }
+    if (b.maxAgentActivations) {
+      candidates.push({
+        ratio: this.activations / b.maxAgentActivations,
+        limit: 'agent interaction limit',
+      });
+    }
+    if (candidates.length === 0) return { ratio: 0, limit: 'budget' };
+
+    const worst = candidates.reduce((a, b2) => (b2.ratio > a.ratio ? b2 : a));
+    return { ratio: Math.min(1, worst.ratio), limit: worst.limit };
   }
 
   private emitWarnings(): void {
-    const p = this.pressure();
+    const { ratio, limit } = this.tightest();
     for (const threshold of [0.5, 0.8, 0.95]) {
       const key = String(threshold);
-      if (p >= threshold && !this.warnedAt.has(key)) {
+      if (ratio >= threshold && !this.warnedAt.has(key)) {
         this.warnedAt.add(key);
-        this.onWarning(`Run has used ${Math.round(p * 100)}% of its budget.`);
+        this.onWarning(`Run has used ${Math.round(ratio * 100)}% of its ${limit}.`);
       }
     }
   }

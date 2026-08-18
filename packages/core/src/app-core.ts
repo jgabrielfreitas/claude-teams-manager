@@ -38,6 +38,7 @@ import {
   type AgentStatus,
   type AppSettings,
   type ApprovalRequest,
+  type Budget,
   type ModelDefinition,
   type Run,
   type RunEvent,
@@ -1036,13 +1037,25 @@ export class AppCore {
     const run = await this.runs.createRun({
       teamId: parsed.teamId,
       objective: parsed.objective,
-      budget: parsed.budget,
+      // A team with no budget at all means "whatever the application says",
+      // not "no limits": without this a team whose budget was cleared would
+      // run with nothing to stop it, which is never what clearing a field
+      // means. Choosing to run unmetered is a different thing, and it still
+      // carries the time and interaction limits.
+      budget: parsed.budget ?? (await this.budgetForTeam(parsed.teamId)),
       workspace: parsed.workspace ? expandPath(parsed.workspace) : undefined,
     });
     this.emit({ type: 'run.created', run });
 
     if (parsed.autoStart === false) return run;
     return this.runs.start(run.id);
+  }
+
+  /** The team's own budget, or the application default when it has none. */
+  private async budgetForTeam(teamId: string): Promise<Budget | undefined> {
+    const team = await this.deps.storage.teams.get(teamId);
+    if (team?.budget) return team.budget;
+    return (await this.getSettings()).defaultBudget;
   }
 
   /**

@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { AGENT_EFFORTS, coerceEffort } from './effort.js';
 import { PERMISSION_MODES, TOOL_GROUPS, defaultToolPermissions, type ToolPermission } from './permissions.js';
 import { invalid } from './errors.js';
+import { budgetProblem } from './budget.js';
 import type { Agent, Budget, Team } from './entities.js';
 import type { CreateAgentInput } from './factories.js';
 
@@ -209,12 +210,23 @@ export function parsePortableTeam(raw: unknown): ParsedPortableTeam {
     warnings.push(`Default agent "${defaultAgent}" is not one of the agents — ignored.`);
   }
 
+  // A file may carry a budget that would never stop the run — hand-written, or
+  // written before the rule existed. Parsing stays lenient, so it is dropped
+  // with a warning and the team falls back to the application default rather
+  // than importing something that can spend for ever.
+  let budget = doc.budget;
+  const problem = budgetProblem(budget);
+  if (problem) {
+    warnings.push(`${problem} Using the application default instead.`);
+    budget = undefined;
+  }
+
   return {
     team: {
       name: doc.name,
       description: doc.description,
       workspace: doc.workspace,
-      budget: doc.budget,
+      budget,
     },
     agents,
     orchestratorHandle: orchestrator && known.has(orchestrator) ? orchestrator : undefined,

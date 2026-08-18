@@ -1,10 +1,16 @@
 import { readFile, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import {
+  DEFAULT_BUDGET,
   availableRunActions,
+  budgetProblem,
+  describeBudget,
+  isUnmetered,
   shortModelLabel,
   slugify,
+  unmetered,
   type Agent,
+  type Budget,
   type Run,
   type TeamWithAgents,
 } from '@claude-team/domain';
@@ -219,6 +225,92 @@ export async function createTeamFromPreset(ui: Ui): Promise<void> {
   }
 }
 
+
+/**
+ * The one budget editor in the terminal, used for the application default and
+ * for a team.
+ *
+ * Metering is the first choice because it is the one that changes what the
+ * other numbers mean: unmetered drops the token and cost caps, and the run
+ * then stops on time and on how many times agents ran — never on nothing,
+ * which the domain refuses outright.
+ */
+export async function editBudget(
+  ui: Ui,
+  current: Budget | undefined,
+  apply: (budget: Budget) => Promise<unknown>,
+): Promise<void> {
+  const budget: Budget = current ? { ...current } : { ...DEFAULT_BUDGET };
+  const metered = !isUnmetered(budget);
+
+  const field = await ui.dialogs.select({
+    title: 'Budget',
+    help: describeBudget(budget),
+    items: [
+      {
+        value: 'metering',
+        label: metered ? 'Switch to unmetered (no token or cost cap)' : 'Switch back to a spend cap',
+        tone: metered ? 'warning' : 'success',
+      },
+      { value: 'maxDurationMinutes', label: 'Max minutes', hint: String(budget.maxDurationMinutes ?? '—') },
+      {
+        value: 'maxAgentActivations',
+        label: 'Max agent interactions',
+        hint: String(budget.maxAgentActivations ?? '—'),
+      },
+      ...(metered
+        ? [
+            { value: 'maxCostUsd', label: 'Max cost (USD)', hint: String(budget.maxCostUsd ?? '—') },
+            { value: 'maxTokens', label: 'Max tokens', hint: String(budget.maxTokens ?? '—') },
+          ]
+        : []),
+    ],
+  });
+  if (!field) return;
+
+  if (field === 'metering') {
+    const next = metered
+      ? unmetered(budget)
+      : {
+          ...budget,
+          maxTokens: budget.maxTokens ?? DEFAULT_BUDGET.maxTokens,
+          maxCostUsd: budget.maxCostUsd ?? DEFAULT_BUDGET.maxCostUsd,
+        };
+    await ui.guard(() => apply(next), `Budget: ${describeBudget(next)}`);
+    if (metered) {
+      ui.notify('Unmetered: it stops on time and interactions, not on what it spends.', 'warning');
+    }
+    return;
+  }
+
+  const raw = await ui.dialogs.text({
+    title: `Budget · ${field === 'maxDurationMinutes' ? 'max minutes' : field === 'maxAgentActivations' ? 'max interactions' : field === 'maxCostUsd' ? 'max cost (USD)' : 'max tokens'}`,
+    label: 'value',
+    initial: String(budget[field as keyof Budget] ?? ''),
+    help: 'Empty removes this limit.',
+  });
+  if (raw === undefined) return;
+
+  const trimmed = raw.trim();
+  const next: Budget = { ...budget };
+  if (trimmed === '') delete next[field as keyof Budget];
+  else {
+    const parsed = Number(trimmed);
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      ui.notify('That is not a number above zero.', 'warning');
+      return;
+    }
+    next[field as keyof Budget] = parsed;
+  }
+
+  const problem = budgetProblem(next);
+  if (problem) {
+    ui.notify(problem, 'warning');
+    return;
+  }
+  await ui.guard(() => apply(next), `Budget: ${describeBudget(next)}`);
+}
+
 export async function editTeam(ui: Ui): Promise<void> {
   const team = await currentTeam(ui);
   if (!team) return;
@@ -228,11 +320,17 @@ export async function editTeam(ui: Ui): Promise<void> {
       { value: 'name', label: 'Name', hint: team.name },
       { value: 'description', label: 'Description', hint: truncate(team.description ?? '—', 40) },
       { value: 'workspace', label: 'Workspace', hint: team.workspace ?? '—' },
+      { value: 'budget', label: 'Budget', hint: describeBudget(team.budget) },
       { value: 'orchestrator', label: 'Orchestrator', hint: handleOf(team, team.orchestratorId) },
       { value: 'defaultAgent', label: 'Default agent', hint: handleOf(team, team.defaultAgentId) },
     ],
   });
   if (!field) return;
+
+  if (field === 'budget') {
+    await editBudget(ui, team.budget, (budget) => ui.core.updateTeam(team.id, { budget }));
+    return;
+  }
 
   if (field === 'orchestrator' || field === 'defaultAgent') {
     const agent = await pickAgent(ui, team, field === 'orchestrator' ? 'Orchestrator' : 'Default agent');

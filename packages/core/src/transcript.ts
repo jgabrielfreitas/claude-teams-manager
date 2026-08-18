@@ -1,6 +1,7 @@
 import {
   EFFORT_CATALOG,
   addUsage,
+  describeBudget,
   emptyUsage,
   formatTokens,
   formatUsd,
@@ -155,16 +156,7 @@ function markdownTranscript(input: TranscriptInput, options: TranscriptOptions):
   out.push(`| Cost | ${formatUsd(run.totals.costUsd)} |`);
   out.push(`| Activations | ${run.totals.agentActivations} |`);
   out.push(`| Tool calls | ${run.totals.toolCalls} |`);
-  if (run.budget) {
-    const b = run.budget;
-    const limits = [
-      b.maxTokens && `${formatTokens(b.maxTokens)} tokens`,
-      b.maxCostUsd !== undefined && formatUsd(b.maxCostUsd),
-      b.maxDurationMinutes && `${b.maxDurationMinutes} min`,
-      b.maxAgentActivations && `${b.maxAgentActivations} activations`,
-    ].filter(Boolean);
-    if (limits.length) out.push(`| Budget | ${limits.join(' · ')} |`);
-  }
+  if (run.budget) out.push(`| Budget | ${describeBudget(run.budget)} |`);
   out.push('');
 
   out.push('## Agents');

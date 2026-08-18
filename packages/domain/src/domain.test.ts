@@ -4,8 +4,13 @@ import {
   DEFAULT_EFFORT,
   DEFAULT_MODEL,
   DEFAULT_ROUTING_LIMITS,
+  DEFAULT_UNMETERED_BUDGET,
+  UNBOUNDED_BUDGET_MESSAGE,
   allTasksSettled,
   assertNoCycle,
+  budgetProblem,
+  budgetSchema,
+  budgetStops,
   availableRunActions,
   canMessage,
   canTransitionRun,
@@ -18,10 +23,12 @@ import {
   createTeam,
   danglingDependencies,
   defaultToolPermissions,
+  describeBudget,
   estimateCostUsd,
   findCycles,
   inboxFor,
   isIsolatedSetup,
+  isUnmetered,
   isStalled,
   looksDestructive,
   normaliseLocalSetup,
@@ -31,7 +38,9 @@ import {
   readyTasks,
   recomputeTaskStatuses,
   slugify,
+  startRunSchema,
   taskProgress,
+  unmetered,
   toPortableTeam,
   topologicalOrder,
   uniqueSlug,
@@ -555,5 +564,75 @@ describe('local setup normalisation', () => {
     // An executable on its own is not "reusing your setup" — it is the same
     // isolated run, executed by a different binary.
     expect(isIsolatedSetup(normaliseLocalSetup({ executablePath: '/opt/claude' }))).toBe(true);
+  });
+});
+
+describe('budgets, and running without one', () => {
+  it('recognises a budget with no spend cap', () => {
+    expect(isUnmetered({ maxDurationMinutes: 60, maxAgentActivations: 50 })).toBe(true);
+    expect(isUnmetered({ maxCostUsd: 20, maxDurationMinutes: 60 })).toBe(false);
+    expect(isUnmetered({ maxTokens: 1000 })).toBe(false);
+    // No budget at all is not a choice to run unmetered; it means "use the default".
+    expect(isUnmetered(undefined)).toBe(false);
+  });
+
+  it('refuses a budget that would never stop the run', () => {
+    expect(budgetProblem({})).toBe(UNBOUNDED_BUDGET_MESSAGE);
+    expect(budgetProblem({ maxDurationMinutes: 30 })).toBeUndefined();
+    expect(budgetProblem({ maxAgentActivations: 10 })).toBeUndefined();
+    expect(budgetProblem({ maxCostUsd: 5 })).toBeUndefined();
+    expect(budgetProblem(undefined)).toBeUndefined();
+  });
+
+  it('drops the spend caps but never the stop conditions', () => {
+    expect(unmetered({ maxTokens: 1000, maxCostUsd: 5, maxDurationMinutes: 30, maxAgentActivations: 9 })).toEqual({
+      maxDurationMinutes: 30,
+      maxAgentActivations: 9,
+    });
+    // Unmetering a budget that had only spend caps has to invent the stops,
+    // or the switch would produce a run that goes for ever.
+    const invented = unmetered({ maxTokens: 1000, maxCostUsd: 5 });
+    expect(budgetProblem(invented)).toBeUndefined();
+    expect(invented).toEqual(DEFAULT_UNMETERED_BUDGET);
+  });
+
+  it('says in one line what stops a run', () => {
+    expect(describeBudget({ maxCostUsd: 20, maxDurationMinutes: 60 })).toBe('$20.00 · 60 min');
+    expect(describeBudget({ maxDurationMinutes: 120, maxAgentActivations: 100 })).toBe(
+      'no spend cap · 120 min · 100 interactions',
+    );
+    expect(describeBudget(undefined)).toBe('application default');
+  });
+
+  it('tells the caller which stop conditions exist', () => {
+    expect(budgetStops({ maxDurationMinutes: 60 })).toEqual({
+      spend: false,
+      time: true,
+      interactions: false,
+    });
+    expect(budgetStops({ maxTokens: 10, maxAgentActivations: 3 })).toEqual({
+      spend: true,
+      time: false,
+      interactions: true,
+    });
+  });
+
+  it('rejects an unbounded budget at the edge, not just in a form', () => {
+    expect(() => budgetSchema.parse({})).toThrow(/must still stop/i);
+    expect(() => budgetSchema.parse({ maxDurationMinutes: 60 })).not.toThrow();
+    expect(() =>
+      startRunSchema.parse({ teamId: 'tm_1', objective: 'go', budget: {} }),
+    ).toThrow(/must still stop/i);
+  });
+
+  it('repairs an imported team whose budget would never stop', () => {
+    const parsed = parsePortableTeam({
+      name: 'team',
+      budget: {},
+      agents: { a: { role: 'r' } },
+    });
+
+    expect(parsed.team.budget).toBeUndefined();
+    expect(parsed.warnings.some((w) => /must still stop/i.test(w))).toBe(true);
   });
 });
