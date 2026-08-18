@@ -4,7 +4,12 @@ import type { RunDetailDto } from '@claude-team/protocol';
 import { formatDuration, formatRelative, runDurationMs } from '@claude-team/ui-shared';
 import { runStatusUi } from '../lib/tone';
 import { RunExportControls, type ExportPrefs } from './run-export';
-import { MessageThread, RunTotals, TaskBoard, TaskProgressSummary, Timeline } from './run-views';
+import {
+  Conversation,
+  DEFAULT_CONVERSATION_PREFS,
+  type ConversationPrefs,
+} from './conversation';
+import { RunTotals, TaskBoard, TaskProgressSummary, Timeline } from './run-views';
 import { Segmented, StatusPill } from './ui';
 
 /**
@@ -15,12 +20,15 @@ import { Segmented, StatusPill } from './ui';
  * resource, which refreshes from the shared `EventSource` (never a poll).
  */
 
-export type FullScreenTab = 'timeline' | 'tasks' | 'messages';
+export type FullScreenTab = 'conversation' | 'timeline' | 'tasks';
+
+/** Exported so the page can reject a tab name from an old link. */
+export const FULL_SCREEN_TABS: FullScreenTab[] = ['conversation', 'tasks', 'timeline'];
 
 const TABS: Array<{ value: FullScreenTab; label: string }> = [
-  { value: 'timeline', label: 'Timeline' },
+  { value: 'conversation', label: 'Conversation' },
   { value: 'tasks', label: 'Tasks' },
-  { value: 'messages', label: 'Messages' },
+  { value: 'timeline', label: 'Timeline' },
 ];
 
 /** How close to the bottom still counts as "following". */
@@ -43,6 +51,7 @@ export function FullScreenRun({
 }) {
   const scroller = useRef<HTMLDivElement>(null);
   const [follow, setFollow] = useState(data.isActive);
+  const [chatPrefs, setChatPrefs] = useState<ConversationPrefs>(DEFAULT_CONVERSATION_PREFS);
   const ui = runStatusUi(data.run.status);
 
   // How many rows the chosen tab shows: the only thing that decides whether
@@ -50,8 +59,8 @@ export function FullScreenRun({
   const count =
     tab === 'timeline'
       ? data.events.length
-      : tab === 'messages'
-        ? data.messages.length
+      : tab === 'conversation'
+        ? data.events.length + data.messages.length
         : data.tasks.length;
 
   // The page behind must not scroll while the overlay owns the viewport.
@@ -121,12 +130,21 @@ export function FullScreenRun({
       </header>
 
       <div className="fullscreen-body" ref={scroller} onScroll={onScroll} tabIndex={-1}>
+        {tab === 'conversation' && (
+          <Conversation
+            data={data}
+            prefs={chatPrefs}
+            onPrefsChange={setChatPrefs}
+            live={data.isActive}
+          />
+        )}
         {tab === 'timeline' && <Timeline events={data.events} agents={data.agents} />}
         {tab === 'tasks' && <TaskBoard tasks={data.tasks} agents={data.agents} />}
-        {tab === 'messages' && <MessageThread messages={data.messages} agents={data.agents} />}
       </div>
 
-      {!follow && count > 0 && (
+      {/* The conversation scrolls itself and offers its own jump, so the
+          window-level one would point at a scroller with nothing in it. */}
+      {!follow && count > 0 && tab !== 'conversation' && (
         <button type="button" className="btn btn-primary jump-latest" onClick={jumpToLatest}>
           ↓ Jump to latest
         </button>

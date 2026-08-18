@@ -797,6 +797,16 @@ export async function executeCommand(id: string, ui: Ui): Promise<void> {
       return runAction(ui, 'resume');
     case 'run.cancel':
       return runAction(ui, 'cancel');
+    case 'run.conversation': {
+      // The full-screen view opens on the conversation, which is the reading
+      // view a terminal has room for.
+      const run = await currentRun(ui);
+      if (!run) return;
+      ui.select({ runId: run.id, teamId: run.teamId });
+      ui.setSection('runs');
+      ui.setRunFullScreen(true);
+      return;
+    }
     case 'run.delete':
       return deleteRun(ui);
     case 'run.retry':

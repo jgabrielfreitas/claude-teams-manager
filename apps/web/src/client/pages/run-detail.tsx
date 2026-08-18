@@ -7,9 +7,17 @@ import { client } from '../api';
 import { AgentAvatar } from '../components/agent-views';
 import { isTypingTarget } from '../components/layout';
 import { RunExportControls, useExportPrefs } from '../components/run-export';
-import { FullScreenRun, type FullScreenTab } from '../components/run-fullscreen';
 import {
-  MessageThread,
+  FULL_SCREEN_TABS,
+  FullScreenRun,
+  type FullScreenTab,
+} from '../components/run-fullscreen';
+import {
+  Conversation,
+  DEFAULT_CONVERSATION_PREFS,
+  type ConversationPrefs,
+} from '../components/conversation';
+import {
   RunTotals,
   TaskBoard,
   TaskProgressSummary,
@@ -33,7 +41,11 @@ import { useQuestions, useRunQuestions } from '../state/questions';
 import { useDeclareSelection } from '../state/selection';
 import { useAction } from '../state/toasts';
 
-type Tab = 'tasks' | 'timeline' | 'messages';
+/**
+ * The conversation is what people come to read, so it opens first and the
+ * timeline sits behind it as the log it is.
+ */
+type Tab = 'conversation' | 'tasks' | 'timeline';
 
 const ACTION_LABEL: Record<RunAction, string> = {
   start: 'Start',
@@ -62,12 +74,21 @@ export function RunDetailPage() {
 
   useDeclareSelection({ runId, runStatus: detail.data?.run.status });
 
-  const tab = (params.get('tab') as Tab | null) ?? 'tasks';
+  // Anything unrecognised — including `messages`, which links made before the
+  // conversation existed still carry — reads as the conversation rather than
+  // rendering an empty panel.
+  const TABS: Tab[] = ['conversation', 'tasks', 'timeline'];
+  const requestedTab = params.get('tab') as Tab | null;
+  const tab: Tab = requestedTab && TABS.includes(requestedTab) ? requestedTab : 'conversation';
   const focusTaskId = params.get('task') ?? undefined;
   const replaying = params.get('replay') === '1';
   // Full screen lives in the URL so a refresh keeps it and a link can open it.
   const fullScreen = params.get('full') === '1';
-  const fullTab = (params.get('view') as FullScreenTab | null) ?? 'timeline';
+  const requestedFullTab = params.get('view') as FullScreenTab | null;
+  const fullTab: FullScreenTab =
+    requestedFullTab && FULL_SCREEN_TABS.includes(requestedFullTab)
+      ? requestedFullTab
+      : 'conversation';
 
   const setParam = useCallback(
     (key: string, value?: string) => {
@@ -80,6 +101,7 @@ export function RunDetailPage() {
   );
 
   const [messageOpen, setMessageOpen] = useState(false);
+  const [chatPrefs, setChatPrefs] = useState<ConversationPrefs>(DEFAULT_CONVERSATION_PREFS);
   const [exportPrefs, setExportPrefs] = useExportPrefs();
 
   useEffect(() => {
@@ -227,9 +249,9 @@ export function RunDetailPage() {
                 <div className="tabs" role="tablist">
                   {(
                     [
+                      ['conversation', 'Conversation'],
                       ['tasks', `Tasks (${data.tasks.length})`],
                       ['timeline', `Timeline (${data.events.length})`],
-                      ['messages', `Messages (${data.messages.length})`],
                     ] as Array<[Tab, string]>
                   ).map(([id, label]) => (
                     <button
@@ -244,6 +266,17 @@ export function RunDetailPage() {
                     </button>
                   ))}
                 </div>
+
+                {tab === 'conversation' && (
+                  <Card title="Conversation" flush>
+                    <Conversation
+                      data={data}
+                      prefs={chatPrefs}
+                      onPrefsChange={setChatPrefs}
+                      live={data.isActive}
+                    />
+                  </Card>
+                )}
 
                 {tab === 'tasks' && (
                   <Card title="Task board">
@@ -260,11 +293,6 @@ export function RunDetailPage() {
                     </Card>
                   ))}
 
-                {tab === 'messages' && (
-                  <Card title="Conversation" flush>
-                    <MessageThread messages={data.messages} agents={data.agents} />
-                  </Card>
-                )}
               </div>
 
               <div className="col" style={{ gap: 20 }}>

@@ -97,6 +97,7 @@ export const COMMANDS: CommandDefinition[] = [
   { id: 'run.resume', title: 'Resume Run', group: 'Run', requires: 'run' },
   { id: 'run.cancel', title: 'Cancel Run', group: 'Run', requires: 'run', key: 'x' },
   { id: 'run.retry', title: 'Retry Run', group: 'Run', requires: 'run' },
+  { id: 'run.conversation', title: 'Open Run Conversation', group: 'Run', requires: 'run' },
   { id: 'run.logs', title: 'Open Run Timeline', group: 'Run', requires: 'run', key: 'l' },
   { id: 'run.replay', title: 'Replay Run', group: 'Run', requires: 'run' },
   { id: 'run.delete', title: 'Delete Run', group: 'Run', requires: 'run', key: 'd', destructive: true },

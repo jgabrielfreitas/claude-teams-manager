@@ -472,6 +472,40 @@ with it, and both surfaces say how much before asking you to confirm. The team
 and its agents are untouched. A run that is still executing is refused; cancel
 it first.
 
+### Reading a run
+
+A run opens as a **conversation**: what each agent actually said, in full, in
+order — with the messages they sent each other, anything they asked you and
+your answer, all in their proper places.
+
+```
+  you                                                          14:31:02
+  Implement OAuth login and review it
+
+▎architect  opus · high                                        14:31:09
+  ⚙ create_tasks — 2 tasks
+  I split this into the auth service and the login screen. …
+
+  · 14:31:10  backend started "Implement the authentication service"
+
+▎backend → architect                             question     14:31:40
+  Redis or Postgres for refresh tokens?
+```
+
+Tool calls fold into the turn they led to — "it read three files and then said
+this" is one thought, not four rows. Reasoning is hidden until you ask for it,
+and task bookkeeping is a thin note between turns. Three switches at the top
+turn each of those on or off.
+
+The **timeline** is still there, one tab over: one line per event with types,
+models, durations and cost, plus step-by-step replay. The conversation is what
+you read; the timeline is what you consult.
+
+Both surfaces compose it from the same function
+(`buildConversation` in `@claude-team/ui-shared`), so a turn means the same
+thing in the browser and in the terminal — where `f` opens the run full screen
+on the conversation.
+
 ### Observability
 
 Every run has a complete, sequence-numbered timeline:
@@ -748,7 +782,7 @@ pnpm web -- --provider fake
 pnpm test
 ```
 
-208 tests, none of which touch the Claude API:
+226 tests, none of which touch the Claude API:
 
 - **Domain** — agent and team creation, handle uniqueness, cloning semantics,
   effort coercion, capability resolution, destructive-command detection, message
@@ -759,7 +793,11 @@ pnpm test
   local Claude Code setup" to actual SDK options.
 - **Presentation** — every domain status, message type, effort and permission
   mode has a shared descriptor (a missing one fails the build, not just one
-  surface), plus the formatters and run-duration derivation.
+  surface), plus the formatters, run-duration derivation and terminal wrapping.
+- **Conversation** — how a run becomes turns: full bodies rather than summaries,
+  tool calls folded into the turn they led to, a message shown once rather than
+  twice, questions keeping the options offered, ordering across three different
+  sources, and every switch that hides part of it.
 - **Persistence** — a shared conformance suite run against *both* the SQLite and
   in-memory implementations: CRUD, cascades, unique constraints, sequence
   monotonicity under concurrency, filters, lossless round-trip.

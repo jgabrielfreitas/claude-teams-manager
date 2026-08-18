@@ -182,6 +182,46 @@ export function runDurationMs(
   return Math.max(0, ended - started);
 }
 
+/**
+ * Wraps text at word boundaries, hard-splitting words longer than the width.
+ *
+ * A terminal view that scrolls by counting rows needs to know exactly how many
+ * lines a body will occupy; letting the terminal wrap instead would drift the
+ * viewport by one every time a long line appeared.
+ */
+export function wrapText(text: string, width: number): string[] {
+  const usable = Math.max(8, width);
+  const lines: string[] = [];
+
+  for (const paragraph of (text ?? '').replace(/\r\n/g, '\n').split('\n')) {
+    if (paragraph.trim() === '') {
+      lines.push('');
+      continue;
+    }
+    let current = '';
+    for (const word of paragraph.split(/\s+/).filter(Boolean)) {
+      let piece = word;
+      while (piece.length > usable) {
+        if (current) {
+          lines.push(current);
+          current = '';
+        }
+        lines.push(piece.slice(0, usable));
+        piece = piece.slice(usable);
+      }
+      if (!current) current = piece;
+      else if (current.length + 1 + piece.length <= usable) current += ` ${piece}`;
+      else {
+        lines.push(current);
+        current = piece;
+      }
+    }
+    if (current) lines.push(current);
+  }
+
+  return lines.length > 0 ? lines : [''];
+}
+
 /** A progress bar as text, identical in the terminal and in the browser. */
 export function progressBar(percent: number, width = 20): string {
   const clamped = Math.max(0, Math.min(100, Math.round(percent)));

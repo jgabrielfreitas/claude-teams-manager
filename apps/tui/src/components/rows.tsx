@@ -25,6 +25,8 @@ import {
   formatRelative,
   progressBar,
   truncate,
+  wrapText,
+  type ConversationTurn,
 } from '@claude-team/ui-shared';
 import { toneColor, UI } from '../theme.js';
 
@@ -250,4 +252,95 @@ export function ProgressLine({
       <Text color={UI.dim}>{` ${String(percent).padStart(3)}%${label ? ` ${label}` : ''}`}</Text>
     </Text>
   );
+}
+
+/* ------------------------------------------------------------------ *
+ * Conversation
+ * ------------------------------------------------------------------ */
+
+/**
+ * A conversation as terminal rows: exactly one node per line, so the
+ * full-screen view's scroll arithmetic stays exact.
+ */
+export function conversationLines(
+  turns: ConversationTurn[],
+  columns: number,
+  options: { showTools?: boolean } = {},
+): React.JSX.Element[] {
+  const width = Math.max(20, columns - 2);
+  const rows: React.JSX.Element[] = [];
+  const line = (key: string, node: React.JSX.Element) => rows.push(<Box key={key}>{node}</Box>);
+
+  turns.forEach((turn, index) => {
+    const color = toneColor(turn.tone);
+
+    if (turn.kind === 'note') {
+      line(
+        `${turn.id}-note`,
+        <Text color={UI.dim} wrap="truncate-end">
+          {`  · ${formatClock(turn.at)} `}
+          <Text color={color}>{truncate(turn.text, width - 14)}</Text>
+        </Text>,
+      );
+      return;
+    }
+
+    if (index > 0) line(`${turn.id}-gap`, <Text> </Text>);
+
+    const meta = [
+      turn.model ? shortModelLabel(turn.model) : undefined,
+      turn.effort ? EFFORT_UI[turn.effort].label.toLowerCase() : undefined,
+      turn.durationMs !== undefined ? formatDuration(turn.durationMs) : undefined,
+      turn.costUsd ? `$${turn.costUsd.toFixed(4)}` : undefined,
+      formatClock(turn.at),
+    ]
+      .filter(Boolean)
+      .join(' · ');
+
+    const who =
+      turn.kind === 'result'
+        ? 'result'
+        : `${turn.speaker ?? 'run'}${turn.to?.length ? ` → ${turn.to.join(', ')}` : ''}`;
+    const label = turn.kind === 'ask' ? `${who} is asking you` : who;
+
+    line(
+      `${turn.id}-head`,
+      <Text wrap="truncate-end">
+        <Text color={color}>▎</Text>
+        <Text bold color={color}>
+          {truncate(label, Math.max(8, width - meta.length - 4))}
+        </Text>
+        <Text color={UI.dim}>{`  ${meta}`}</Text>
+      </Text>,
+    );
+
+    if (options.showTools !== false) {
+      for (const tool of turn.tools) {
+        line(
+          `${turn.id}-tool-${tool.id}`,
+          <Text color={UI.dim} wrap="truncate-end">
+            {`  ⚙ ${truncate(tool.detail + (tool.result ? ` → ${tool.result}` : ''), width - 4)}`}
+          </Text>,
+        );
+      }
+    }
+
+    wrapText(turn.text, width - 2).forEach((text, position) => {
+      line(
+        `${turn.id}-body-${position}`,
+        <Text wrap="truncate-end">{`  ${text}`}</Text>,
+      );
+    });
+
+    for (const option of turn.options ?? []) {
+      line(
+        `${turn.id}-opt-${option.label}`,
+        <Text color={UI.dim} wrap="truncate-end">
+          {`    • ${truncate(option.label + (option.description ? ` — ${option.description}` : ''), width - 6)}`}
+        </Text>,
+      );
+    }
+  });
+
+  return rows;
 }

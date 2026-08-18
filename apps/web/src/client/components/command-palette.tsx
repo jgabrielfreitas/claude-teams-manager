@@ -157,6 +157,8 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
 
         case 'run.start':
           return go(`/teams/${teamId}?action=run`);
+        case 'run.conversation':
+          return go(`/runs/${runId}?tab=conversation`);
         case 'run.logs':
           return go(`/runs/${runId}?tab=timeline`);
         case 'run.replay':

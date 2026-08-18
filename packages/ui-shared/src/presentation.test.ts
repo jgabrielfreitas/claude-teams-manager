@@ -21,6 +21,7 @@ import {
   progressBar,
   runDurationMs,
   truncate,
+  wrapText,
 } from './presentation.js';
 
 /**
@@ -123,5 +124,28 @@ describe('formatters', () => {
     // Out-of-range input must not produce a broken bar.
     expect(progressBar(-20, 10)).toHaveLength(10);
     expect(progressBar(500, 10)).toHaveLength(10);
+  });
+});
+
+describe('wrapping text for a terminal', () => {
+  it('breaks at word boundaries and never exceeds the width', () => {
+    const lines = wrapText('the quick brown fox jumps over the lazy dog', 12);
+    expect(lines.every((line) => line.length <= 12)).toBe(true);
+    expect(lines.join(' ')).toBe('the quick brown fox jumps over the lazy dog');
+  });
+
+  it('hard-splits a word that cannot fit, instead of overflowing', () => {
+    const lines = wrapText(`start ${'x'.repeat(25)} end`, 10);
+    expect(lines.every((line) => line.length <= 10)).toBe(true);
+    expect(lines.join('')).toContain('x'.repeat(25));
+  });
+
+  it('keeps paragraph breaks, because they are how prose reads', () => {
+    expect(wrapText('one\n\ntwo', 20)).toEqual(['one', '', 'two']);
+  });
+
+  it('always returns at least one line, so a caller can count rows safely', () => {
+    expect(wrapText('', 20)).toEqual(['']);
+    expect(wrapText('   ', 20)).toEqual(['']);
   });
 });

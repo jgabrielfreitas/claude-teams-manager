@@ -1134,6 +1134,173 @@ hr {
   font-size: 13px;
 }
 
+/* ------------------------------------------------------------------ *
+ * Conversation
+ *
+ * The reading view of a run. Unlike the timeline it is prose: generous
+ * measure, full bodies, and everything that is not speech (tool calls,
+ * reasoning, task bookkeeping) visually subordinate to what was said.
+ * ------------------------------------------------------------------ */
+.chat {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.chat-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.chat-controls .chip {
+  padding: 3px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 11.5px;
+  cursor: pointer;
+  transition: color 120ms var(--ease), border-color 120ms var(--ease);
+}
+
+.chat-controls .chip:hover { border-color: var(--border-strong); color: var(--text); }
+
+.chat-controls .chip[aria-pressed='true'] {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  background: var(--accent-soft);
+}
+
+.chat-scroll {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px 16px;
+  max-height: 620px;
+  overflow-y: auto;
+  scroll-behavior: smooth;
+}
+
+.chat-turn {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  border-left: 3px solid hsl(var(--who, 210) 55% 60% / 0.85);
+  background: var(--surface-2);
+  max-width: 92%;
+}
+
+.chat-turn.from-user {
+  align-self: flex-end;
+  border-left-color: color-mix(in srgb, var(--accent) 60%, transparent);
+  background: var(--accent-soft);
+}
+
+.chat-turn.kind-ask,
+.chat-turn.kind-approval {
+  border-left-color: var(--tone, var(--tone-warning));
+  background: color-mix(in srgb, var(--tone-warning) 8%, var(--surface-2));
+}
+
+.chat-turn.kind-result {
+  align-self: stretch;
+  max-width: 100%;
+  border-left-color: var(--tone-success);
+  background: color-mix(in srgb, var(--tone-success) 8%, var(--surface-2));
+}
+
+.chat-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+
+.chat-head .who {
+  font-weight: 600;
+  color: hsl(var(--who, 210) 55% 62%);
+  font-family: var(--font-mono);
+}
+
+.chat-turn.from-user .chat-head .who { color: var(--accent); }
+.chat-turn.kind-result .chat-head .who { color: var(--tone-success); }
+
+.chat-turn .body {
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 13.5px;
+  line-height: 1.62;
+  color: var(--text);
+}
+
+.chat-tools,
+.chat-thinking {
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-sm, 6px);
+  padding: 6px 9px;
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+
+.chat-tools summary,
+.chat-thinking summary { cursor: pointer; }
+
+.chat-tools ul {
+  margin: 6px 0 0;
+  padding-left: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.chat-thinking .body {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.chat-options {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 12.5px;
+}
+
+.chat-note {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 11.5px;
+  color: var(--tone, var(--text-muted));
+  font-family: var(--font-mono);
+}
+
+.chat-note .ts { color: var(--text-muted); }
+.chat-note .line { flex: 0 0 24px; height: 1px; background: var(--border); }
+.chat-note .what { color: var(--tone, var(--text-muted)); }
+
+.chat-jump {
+  position: absolute;
+  right: 18px;
+  bottom: 14px;
+  box-shadow: var(--shadow, 0 4px 14px rgb(0 0 0 / 0.25));
+}
+
+/* Full screen gives the conversation the whole window. */
+.fullscreen-body > .chat { flex: 1; min-height: 0; }
+.fullscreen-body > .chat .chat-scroll { max-height: none; flex: 1; }
+
 /* Agent cards */
 .agent-card {
   display: flex;

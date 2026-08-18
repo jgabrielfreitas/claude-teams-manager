@@ -2,13 +2,19 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Box, Text } from 'ink';
 import { TRANSCRIPT_FORMATS } from '@claude-team/core';
 import { formatTokens, formatUsd, totalTokens } from '@claude-team/domain';
-import { RUN_STATUS_UI, formatDuration, runDurationMs, truncate } from '@claude-team/ui-shared';
+import {
+  RUN_STATUS_UI,
+  buildConversation,
+  formatDuration,
+  runDurationMs,
+  truncate,
+} from '@claude-team/ui-shared';
 import { toneColor, UI } from '../theme.js';
 import { useKeys, useLoader } from '../lib/hooks.js';
 import { useUi } from '../store.js';
 import { copyRunTranscript, exportRunTranscript } from '../actions.js';
 import { Dim, EmptyState, ErrorLine, KeyHints, Loading, StatusChip } from '../components/ui.js';
-import { EventRow, MessageRow, ProgressLine, TaskRow } from '../components/rows.js';
+import { EventRow, ProgressLine, TaskRow, conversationLines } from '../components/rows.js';
 
 /**
  * One run, using the whole terminal.
@@ -20,20 +26,22 @@ import { EventRow, MessageRow, ProgressLine, TaskRow } from '../components/rows.
  * transcript the browser downloads a keypress away.
  */
 
-const TABS = ['timeline', 'tasks', 'messages'] as const;
+// Conversation first: it is what the run *said*, and the timeline is the log
+// you consult when the reading view is not enough.
+const TABS = ['conversation', 'tasks', 'timeline'] as const;
 type Tab = (typeof TABS)[number];
 
 const TAB_LABEL: Record<Tab, string> = {
+  conversation: 'Conversation',
   timeline: 'Timeline',
   tasks: 'Tasks',
-  messages: 'Messages',
 };
 
 /** Used once the full names plus their counts no longer fit on one line. */
 const TAB_SHORT: Record<Tab, string> = {
+  conversation: 'Talk',
   timeline: 'Time',
   tasks: 'Task',
-  messages: 'Msgs',
 };
 
 export interface RunFullScreenProps {
@@ -52,7 +60,7 @@ export function RunFullScreen({ height, columns, narrow }: RunFullScreenProps): 
     [runId, revision],
   );
 
-  const [tab, setTab] = useState<Tab>('timeline');
+  const [tab, setTab] = useState<Tab>('conversation');
   const [offset, setOffset] = useState(0);
   /** Live runs stick to the newest row until the user scrolls up. */
   const [follow, setFollow] = useState(true);
@@ -63,9 +71,11 @@ export function RunFullScreen({ height, columns, narrow }: RunFullScreenProps): 
     setFollow(true);
   }, [runId, tab]);
 
-  const events = data?.events ?? [];
+  // Memoised because the conversation is rebuilt from them: a fresh `[]` on
+  // every render would rebuild it on every render too.
+  const events = useMemo(() => data?.events ?? [], [data]);
   const tasks = data?.tasks ?? [];
-  const messages = data?.messages ?? [];
+  const messages = useMemo(() => data?.messages ?? [], [data]);
   const agents = useMemo(() => data?.agents ?? [], [data]);
 
   const handleOf = useMemo(
@@ -85,6 +95,20 @@ export function RunFullScreen({ height, columns, narrow }: RunFullScreenProps): 
 
   const rows: React.ReactNode[] = useMemo(() => {
     switch (tab) {
+      case 'conversation':
+        return conversationLines(
+          buildConversation({
+            run: data?.run ?? { objective: '', createdAt: new Date() },
+            events,
+            messages,
+            questions: data?.questions ?? [],
+            agents,
+            // Reasoning follows the same switch as the transcript: what is on
+            // screen is what `y` and `e` produce.
+            options: { includeThinking: ui.transcript.includeDebug },
+          }),
+          columns,
+        );
       case 'tasks':
         return tasks.map((task) => (
           <TaskRow
@@ -96,10 +120,6 @@ export function RunFullScreen({ height, columns, narrow }: RunFullScreenProps): 
             )}
           />
         ));
-      case 'messages':
-        return messages.map((message) => (
-          <MessageRow key={message.id} message={message} nameOf={nameOf} />
-        ));
       default:
         return visibleEvents.map((event) => (
           <EventRow key={event.id} event={event} handle={handleOf(event.agentId)} />
@@ -108,7 +128,21 @@ export function RunFullScreen({ height, columns, narrow }: RunFullScreenProps): 
     // `visibleEvents` is derived from `events` on every render; depending on the
     // arrays it is built from keeps this memo honest without re-running per key.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab, tasks, messages, events, ui.transcript.includeDebug, handleOf, nameOf]);
+  }, [tab, tasks, messages, events, data, agents, columns, ui.transcript.includeDebug, handleOf, nameOf]);
+
+  // What the tab bar counts: turns spoken, not rows rendered — a long answer
+  // is one turn however many lines it wraps to.
+  const conversationTurns = useMemo(
+    () =>
+      buildConversation({
+        run: data?.run ?? { objective: '', createdAt: new Date() },
+        events,
+        messages,
+        questions: data?.questions ?? [],
+        agents,
+      }).filter((turn) => turn.kind === 'say' || turn.kind === 'message').length,
+    [data, events, messages, agents],
+  );
 
   // Header, tab bar and key legend; each one is dropped before the content is,
   // so an eight-row terminal still shows the run rather than crashing.
@@ -247,8 +281,8 @@ export function RunFullScreen({ height, columns, narrow }: RunFullScreenProps): 
           const count =
             candidate === 'tasks'
               ? tasks.length
-              : candidate === 'messages'
-                ? messages.length
+              : candidate === 'conversation'
+                ? conversationTurns
                 : visibleEvents.length;
           const label = tiny ? TAB_SHORT[candidate] : TAB_LABEL[candidate];
           return (
