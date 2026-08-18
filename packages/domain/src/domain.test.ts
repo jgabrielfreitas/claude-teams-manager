@@ -21,8 +21,10 @@ import {
   estimateCostUsd,
   findCycles,
   inboxFor,
+  isIsolatedSetup,
   isStalled,
   looksDestructive,
+  normaliseLocalSetup,
   parsePortableTeam,
   permissionMode,
   permissionsFromGroups,
@@ -505,5 +507,53 @@ describe('portable team format', () => {
   it('rejects a document that is not a team', () => {
     expect(() => parsePortableTeam({ nope: true })).toThrow(/invalid team file/i);
     expect(() => parsePortableTeam({ name: 'x', agents: {} })).toThrow(/at least one agent/i);
+  });
+});
+
+describe('local setup normalisation', () => {
+  it('falls back to isolation for anything it cannot make sense of', () => {
+    // Every one of these can reach us: a row written before the field existed,
+    // a hand-edited settings file, a value from an older version.
+    for (const input of [undefined, null, {}, 'nonsense', 42, []]) {
+      expect(normaliseLocalSetup(input)).toEqual({
+        settingSources: [],
+        skills: 'none',
+        mcpServers: false,
+      });
+    }
+  });
+
+  it('keeps only real setting sources, without duplicates', () => {
+    expect(
+      normaliseLocalSetup({ settingSources: ['user', 'user', 'nope', 'local'] }).settingSources,
+    ).toEqual(['user', 'local']);
+  });
+
+  it('treats an empty or blank skill list as none', () => {
+    expect(normaliseLocalSetup({ skills: [] }).skills).toBe('none');
+    expect(normaliseLocalSetup({ skills: ['  ', ''] }).skills).toBe('none');
+    expect(normaliseLocalSetup({ skills: ['pdf'] }).skills).toEqual(['pdf']);
+    expect(normaliseLocalSetup({ skills: 'all' }).skills).toBe('all');
+  });
+
+  it('only enables MCP reuse on a real true, never on a truthy value', () => {
+    expect(normaliseLocalSetup({ mcpServers: true }).mcpServers).toBe(true);
+    expect(normaliseLocalSetup({ mcpServers: 'yes' }).mcpServers).toBe(false);
+    expect(normaliseLocalSetup({ mcpServers: 1 }).mcpServers).toBe(false);
+  });
+
+  it('drops a blank executable path rather than spawning an empty string', () => {
+    expect(normaliseLocalSetup({ executablePath: '   ' }).executablePath).toBeUndefined();
+    expect(normaliseLocalSetup({ executablePath: ' /opt/claude ' }).executablePath).toBe('/opt/claude');
+  });
+
+  it('knows when nothing of the machine is being reused', () => {
+    expect(isIsolatedSetup(normaliseLocalSetup({}))).toBe(true);
+    expect(isIsolatedSetup(normaliseLocalSetup({ skills: 'all' }))).toBe(false);
+    expect(isIsolatedSetup(normaliseLocalSetup({ mcpServers: true }))).toBe(false);
+    expect(isIsolatedSetup(normaliseLocalSetup({ settingSources: ['project'] }))).toBe(false);
+    // An executable on its own is not "reusing your setup" — it is the same
+    // isolated run, executed by a different binary.
+    expect(isIsolatedSetup(normaliseLocalSetup({ executablePath: '/opt/claude' }))).toBe(true);
   });
 });

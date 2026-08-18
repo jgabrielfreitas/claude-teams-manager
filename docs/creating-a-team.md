@@ -215,6 +215,25 @@ recusado — é o comportamento desejado, mas vale saber que os dois interagem.
 Grupo não declarado usa o padrão da capacidade (`filesystem_read` é `allow`,
 `filesystem_write` é `ask`, `browser` é `deny`), **não** `deny` para tudo.
 
+#### O que o time herda da sua máquina
+
+Por padrão, **nada** da sua configuração local do Claude Code: nem a sua memória
+(`CLAUDE.md`), nem as suas skills, nem os seus servidores MCP. É o que faz o
+arquivo do time se comportar igual em qualquer máquina. A sua conta continua
+sendo usada — isto é sobre configuração, não sobre credencial.
+
+Em **Settings → Your local Claude Code** (web) ou **Settings → Local Claude
+Code** (TUI) você liga isso, por partes: memória, skills (todas ou uma lista) e
+MCP. Vale para o próximo run, não é preciso reiniciar.
+
+Duas consequências que valem antes de ligar:
+
+- o seu `~/.claude/settings.json` pode **pré-aprovar ferramentas**, e essas
+  chamadas passam sem o gate de permissão deste produto (as capacidades em
+  `deny` continuam recusadas);
+- o time deixa de ser portátil — quem importar o YAML em outra máquina não tem
+  as suas skills.
+
 ### 5. Revisão é por tarefa, não por time
 
 Não existe campo "reviewer" no arquivo do time. A revisão é atribuída pelo

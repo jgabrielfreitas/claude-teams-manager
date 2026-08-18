@@ -9,7 +9,7 @@ import type {
   Task,
   Team,
 } from '@claude-team/domain';
-import { defaultSettings } from '@claude-team/domain';
+import { defaultSettings, normaliseLocalSetup } from '@claude-team/domain';
 
 import type {
   AgentRepository,
@@ -466,8 +466,11 @@ class MemorySettingsRepository implements SettingsRepository {
   }
 
   async save(settings: AppSettings): Promise<AppSettings> {
-    this.t.settings = clone(settings);
-    return clone(settings);
+    // Normalised on the way in, exactly as the SQLite driver does when it reads
+    // the column back, so the two drivers cannot disagree about what was saved.
+    const normalised: AppSettings = { ...settings, localSetup: normaliseLocalSetup(settings.localSetup) };
+    this.t.settings = clone(normalised);
+    return clone(normalised);
   }
 }
 

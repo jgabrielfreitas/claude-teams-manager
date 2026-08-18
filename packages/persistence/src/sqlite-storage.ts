@@ -29,7 +29,7 @@ import type {
   Team,
   TokenUsage,
 } from '@claude-team/domain';
-import { defaultSettings } from '@claude-team/domain';
+import { defaultSettings, normaliseLocalSetup } from '@claude-team/domain';
 
 import { applyMigrations, applyPragmas, type Database } from './migrations.js';
 import type {
@@ -641,6 +641,7 @@ const SETTINGS_COLUMNS = [
   'teams_dir',
   'auto_answer_questions',
   'question_timeout_ms',
+  'local_setup',
   'updated_at',
 ] as const;
 
@@ -665,6 +666,7 @@ function settingsToRow(s: AppSettings): BindRow {
     teams_dir: bStr(s.teamsDir),
     auto_answer_questions: bBool(s.autoAnswerQuestions),
     question_timeout_ms: s.questionTimeoutMs,
+    local_setup: bJson(s.localSetup ?? {}),
     updated_at: s.updatedAt.getTime(),
   };
 }
@@ -689,6 +691,7 @@ function rowToSettings(r: Row): AppSettings {
     teamsDir: optStr(r['teams_dir']),
     autoAnswerQuestions: bool(r['auto_answer_questions']),
     questionTimeoutMs: int(r['question_timeout_ms']),
+    localSetup: normaliseLocalSetup(json<unknown>(r['local_setup'], {})),
     updatedAt: date(r['updated_at']),
   };
 }

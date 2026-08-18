@@ -1,6 +1,7 @@
 import type {
   AgentEffort,
   DomainError,
+  LocalSetup,
   ModelDefinition,
   TokenUsage,
   ToolPermission,
@@ -74,6 +75,15 @@ export interface AgentRunInput {
 
   /** Extra environment for the provider process, e.g. a scoped API key. */
   env?: Record<string, string>;
+
+  /**
+   * How much of the machine's own Claude Code installation this activation
+   * inherits — settings, memory, skills, MCP servers. Absent means isolated.
+   * Passed per activation rather than fixed when the provider is constructed,
+   * so changing it in Settings takes effect on the next run instead of on the
+   * next restart.
+   */
+  localSetup?: LocalSetup;
 }
 
 export interface PermissionRequest {

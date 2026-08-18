@@ -655,6 +655,9 @@ describe.each(implementations)('%s storage', (_driver, create) => {
       expect(first.maxRecursionDepth).toBe(defaults.maxRecursionDepth);
       expect(first.askTimeoutMs).toBe(defaults.askTimeoutMs);
       expect(first.defaultWorkspace).toBeUndefined();
+      // Nothing of the machine's own Claude Code setup is inherited until it is
+      // switched on: an upgrade must not silently change how agents behave.
+      expect(first.localSetup).toEqual({ settingSources: [], skills: 'none', mcpServers: false });
       expect(first.updatedAt).toBeInstanceOf(Date);
 
       // Persisted: a second read returns the very same row, not a fresh default.
@@ -674,6 +677,12 @@ describe.each(implementations)('%s storage', (_driver, create) => {
         webPort: 9999,
         requireApprovalFor: ['shell'],
         defaultBudget: { maxTokens: 1, maxCostUsd: 2 },
+        localSetup: {
+          settingSources: ['user' as const, 'project' as const],
+          skills: ['research', 'laudo-de-bug'],
+          mcpServers: true,
+          executablePath: '/usr/local/bin/claude',
+        },
         updatedAt: at(1234),
       };
       expect(await storage.settings.save(next)).toEqual(next);
@@ -684,6 +693,28 @@ describe.each(implementations)('%s storage', (_driver, create) => {
       const read = await storage.settings.get();
       expect(read.defaultWorkspace).toBeUndefined();
       expect(read).toEqual(cleared);
+    });
+
+    it('normalises a local setup that came from outside, identically in both drivers', async () => {
+      const saved = await storage.settings.save({
+        ...defaultSettings(at(0)),
+        localSetup: {
+          // Duplicates, an unknown source and a blank executable are all things a
+          // hand-edited file or an older row can contain.
+          settingSources: ['user', 'user', 'nonsense'],
+          skills: [],
+          mcpServers: 'yes',
+          executablePath: '   ',
+        } as never,
+        updatedAt: at(1),
+      });
+
+      expect(saved.localSetup).toEqual({
+        settingSources: ['user'],
+        skills: 'none',
+        mcpServers: false,
+      });
+      expect((await storage.settings.get()).localSetup).toEqual(saved.localSetup);
     });
   });
 

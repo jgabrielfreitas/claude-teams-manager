@@ -87,6 +87,7 @@ Verify your real Claude connection end to end at any time:
 pnpm smoke            # one agent reads a file and reports back              (~$0.06)
 pnpm smoke:team       # a real orchestrator delegating to a real worker      (~$0.26)
 pnpm smoke:question   # a real agent asking you a question, and using the answer (~$0.27)
+pnpm smoke:local      # proves what your local Claude setup does and does not add (~$0.33)
 ```
 
 ---
@@ -99,6 +100,7 @@ On first run you get a wizard — the same one in both surfaces. Its rule is
 - whether the Claude CLI is installed, and its version;
 - whether you are already authenticated, and how (subscription vs API key);
 - MCP servers already configured on this machine (user and project scope);
+- skills installed under `~/.claude/skills` and in the workspace;
 - which command-line tools agents will find (`git`, `node`, `pnpm`, `docker`, …);
 - your current directory, and whether it is a git repository (branch, dirty
   files, last commit);
@@ -588,13 +590,52 @@ Settings (edit in the Settings section of either UI):
 | `defaultBudget` | Applied to teams that define none |
 | `requireApprovalFor` | Categories that always need a human |
 | `autoApproveAll` | Skip every prompt (dangerous, opt-in) |
+| `localSetup` | How much of your own Claude Code installation agents inherit |
 | `maxHops`, `maxRecursionDepth`, `askTimeoutMs` | Communication guards |
 | `webPort` | Port for the API server (default 4317; `PORT` overrides it) |
 | `theme` | `auto` / `dark` / `light` |
 
-Agents run with `settingSources: []`, meaning your personal Claude Code settings
-files are deliberately **not** loaded — a team behaves identically on every
-machine.
+### Reusing your own Claude Code setup
+
+Agents always run through **your** Claude installation and **your** login — the
+SDK uses the same credentials `claude` does, so runs are billed to your
+subscription or `ANTHROPIC_API_KEY` and no separate key is needed.
+
+What is *not* inherited by default is your **configuration**. New installations
+run with `settingSources: []`, so your memory, your skills and your MCP servers
+are invisible to agents and a team behaves identically on every machine.
+
+Turn that off in **Settings → Your local Claude Code** (web) or **Settings →
+Local Claude Code** (TUI), where each part is separate:
+
+| Switch | What the agent gains |
+| --- | --- |
+| User settings | `~/.claude/settings.json` and your user memory |
+| Workspace settings & CLAUDE.md | The instructions of the repo each agent works in |
+| Workspace local overrides | `.claude/settings.local.json`, the untracked one |
+| Skills | Every installed skill, or a list you choose |
+| MCP servers | The servers already configured on this machine |
+| Claude executable | Your own `claude` binary instead of the SDK's bundled one |
+
+Two things worth knowing before you switch it on:
+
+- **Your settings file can pre-approve tools.** A `permissions.allow` entry in
+  `~/.claude/settings.json` grants the tool before this product's own approval
+  gate is consulted, so those calls run without asking you. Capabilities set to
+  **deny** here are still refused — deny always wins.
+- **A team stops being portable.** The same team file now behaves differently on
+  a machine with different memory or skills. That is usually what you want on
+  your own laptop, and usually not what you want in CI.
+
+The setting applies to the **next run**, not the next restart — only the
+executable path needs a restart, because the health check has no run to carry
+it.
+
+Prove it end to end:
+
+```bash
+pnpm smoke:local      # the same agent, isolated then inheriting this machine
+```
 
 ---
 
@@ -655,6 +696,7 @@ Decisions are recorded in [`docs/adr/`](docs/adr/):
 - [003 — Agent-to-agent communication](docs/adr/003-agent-communication.md)
 - [004 — Provider abstraction and the Claude integration](docs/adr/004-provider-abstraction.md)
 - [005 — Persistence](docs/adr/005-persistence.md)
+- [006 — Reusing the local Claude Code installation](docs/adr/006-local-claude-setup.md)
 
 ### Why the Claude Agent SDK
 
@@ -699,14 +741,15 @@ pnpm web -- --provider fake
 pnpm test
 ```
 
-163 tests, none of which touch the Claude API:
+204 tests, none of which touch the Claude API:
 
 - **Domain** — agent and team creation, handle uniqueness, cloning semantics,
   effort coercion, capability resolution, destructive-command detection, message
   routing and every guard, task dependency resolution, cycle detection,
   topological order, run and task state machines, YAML round-trip.
 - **Provider** — capability→tool expansion including the git/shell interaction,
-  approval categorisation, the effort adapter.
+  approval categorisation, the effort adapter, and the mapping from "reuse my
+  local Claude Code setup" to actual SDK options.
 - **Presentation** — every domain status, message type, effort and permission
   mode has a shared descriptor (a missing one fails the build, not just one
   surface), plus the formatters and run-duration derivation.
@@ -728,12 +771,17 @@ honours capability grants, invokes the host's in-process tools, drives the
 approval callback, reports usage and cost, and can be cancelled — which is what
 makes the whole runtime testable deterministically.
 
-For the parts a fake cannot prove, two scripts hit the real API:
+- **Local setup** — what the run inherits from this machine reaches every
+  activation, changes take effect on the next run without a restart, and an
+  unrecognised value normalises to isolation rather than to inheritance.
+
+For the parts a fake cannot prove, four scripts hit the real API:
 
 ```bash
 pnpm smoke            # provider health, live model discovery, one agent   (~$0.06)
 pnpm smoke:team       # a real orchestrator delegating to a real worker    (~$0.26)
 pnpm smoke:question   # a real agent asking you a question, and using the answer (~$0.27)
+pnpm smoke:local      # the same agent isolated, then inheriting this machine (~$0.33)
 ```
 
 ---
@@ -754,8 +802,15 @@ the problem, point the provider at your own installation with
 `ClaudeProvider({ pathToClaudeCodeExecutable: '/path/to/claude' })`.
 
 **The Claude CLI is not found.**
-The SDK spawns the `claude` binary. Install Claude Code and make sure it is on
-`PATH`; the onboarding wizard reports what it found.
+The SDK spawns a `claude` binary — by default the pinned one it ships with, so
+runs work even without a CLI on `PATH`. Install Claude Code (or set the
+executable path in Settings) if you want your own version; the onboarding
+wizard reports what it found.
+
+**My skills / CLAUDE.md / MCP servers are not being used.**
+They are not, until you say so: see *Reusing your own Claude Code setup* above.
+Turn it on in Settings, and remember it applies to the next run — a run already
+in flight keeps the configuration it started with.
 
 **A run does nothing and finishes immediately.**
 Check the run timeline. The most common cause is a team whose orchestrator has

@@ -470,6 +470,49 @@ export interface AgentQuestion {
  * Settings
  * ------------------------------------------------------------------ */
 
+/**
+ * Which of the machine's own Claude Code configuration a team may reuse.
+ *
+ * Running an agent in isolation from the local setup makes a team behave the
+ * same everywhere, which is what a shared team file is for. But the machine
+ * that runs it usually already has the memory, skills and MCP access the work
+ * needs, and re-creating all of that inside team files would be duplication.
+ * So the choice is explicit, stored, and visible in both surfaces rather than
+ * being a constant in the provider.
+ */
+export const CLAUDE_SETTING_SOURCES = ['user', 'project', 'local'] as const;
+export type ClaudeSettingSource = (typeof CLAUDE_SETTING_SOURCES)[number];
+
+export interface LocalSetup {
+  /**
+   * Claude Code setting files agents load, in the CLI's own vocabulary:
+   * `user` = `~/.claude/settings.json` and your user memory, `project` =
+   * `.claude/settings.json` and the `CLAUDE.md` of the agent's workspace,
+   * `local` = `.claude/settings.local.json`. Empty means fully isolated.
+   */
+  settingSources: ClaudeSettingSource[];
+  /**
+   * Skills installed on this machine that agents may invoke. `'none'` hides
+   * them, `'all'` offers every discovered skill, and a list offers exactly
+   * those (matched on the SKILL.md name, or `plugin:skill`).
+   */
+  skills: 'none' | 'all' | string[];
+  /** Reuse the MCP servers already configured on this machine. */
+  mcpServers: boolean;
+  /**
+   * The `claude` executable to spawn. Unset uses the one bundled with the SDK,
+   * which is pinned and therefore reproducible; set it to your own install to
+   * run whatever version you have.
+   */
+  executablePath?: string;
+}
+
+export const ISOLATED_SETUP: LocalSetup = {
+  settingSources: [],
+  skills: 'none',
+  mcpServers: false,
+};
+
 export interface AppSettings {
   /** Marks onboarding as done so the wizard does not run again. */
   onboardingCompleted: boolean;
@@ -491,6 +534,13 @@ export interface AppSettings {
   requireApprovalFor: string[];
   /** When true, no approval prompts are raised (dangerous, opt-in). */
   autoApproveAll: boolean;
+  /**
+   * How much of the local Claude Code installation agents inherit. Off by
+   * default: a team should behave the same on every machine until you decide
+   * otherwise, and your own settings file can pre-approve tools this product
+   * would otherwise stop and ask about.
+   */
+  localSetup: LocalSetup;
   /**
    * When true, an agent's question to the human is answered automatically with
    * an instruction to decide and state the assumption, instead of blocking.

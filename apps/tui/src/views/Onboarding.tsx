@@ -236,6 +236,14 @@ function ClaudeStep({
                 : 'none configured'
             }
           />
+          <Field
+            label="skills"
+            value={
+              detected.claude.skills.length
+                ? `${detected.claude.skills.length} installed: ${detected.claude.skills.map((s) => s.name).join(', ')}`
+                : 'none installed'
+            }
+          />
           <Field label="tools" value={detected.claude.availableTools.join(', ') || '—'} />
           {health ? (
             <Field

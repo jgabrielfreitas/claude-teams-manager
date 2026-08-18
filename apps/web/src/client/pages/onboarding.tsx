@@ -149,6 +149,19 @@ export function OnboardingPage() {
                   }
                 />
                 <Detail
+                  label="Skills installed"
+                  value={
+                    environment
+                      ? environment.claude.skills.length
+                        ? `${environment.claude.skills.length} — ${environment.claude.skills
+                            .slice(0, 4)
+                            .map((skill) => skill.name)
+                            .join(', ')}`
+                        : 'none'
+                      : 'checking…'
+                  }
+                />
+                <Detail
                   label="Storage"
                   value={
                     environment

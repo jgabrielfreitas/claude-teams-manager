@@ -5,9 +5,10 @@ import {
   APPROVAL_CATEGORY_LABELS,
   type AgentEffort,
   type ApprovalCategory,
+  type ClaudeSettingSource,
 } from '@claude-team/domain';
 import type { ProviderHealthDto, SettingsDto } from '@claude-team/protocol';
-import { formatRelative } from '@claude-team/ui-shared';
+import { formatRelative, truncate } from '@claude-team/ui-shared';
 import { client } from '../api';
 import { EffortSelect, ModelSelect, WorkspaceField } from '../components/pickers';
 import { Card, Field, Segmented } from '../components/ui';
@@ -55,6 +56,37 @@ function SettingsForm({ settings }: { settings: SettingsDto }) {
   const setAutoMode = (on: boolean) =>
     setForm((current) => ({ ...current, autoApproveAll: on, autoAnswerQuestions: on }));
 
+  // Reusing the local installation is one idea made of four switches, same as
+  // auto mode: a master toggle for "use my machine", with the parts underneath
+  // for anyone who wants memory but not skills, or skills but not MCP.
+  const local = form.localSetup;
+  const localOn =
+    local.settingSources.length > 0 || local.skills !== 'none' || local.mcpServers;
+  const setLocal = (patch: Partial<SettingsDto['localSetup']>) =>
+    setForm((current) => ({ ...current, localSetup: { ...current.localSetup, ...patch } }));
+  const toggleSource = (source: ClaudeSettingSource) =>
+    setLocal({
+      settingSources: local.settingSources.includes(source)
+        ? local.settingSources.filter((s) => s !== source)
+        : [...local.settingSources, source],
+    });
+  const setLocalAll = (on: boolean) =>
+    setLocal(
+      on
+        ? { settingSources: ['user', 'project'], skills: 'all', mcpServers: true }
+        : { settingSources: [], skills: 'none', mcpServers: false },
+    );
+  const skillMode: 'none' | 'all' | 'pick' =
+    local.skills === 'none' ? 'none' : local.skills === 'all' ? 'all' : 'pick';
+  const chosenSkills = Array.isArray(local.skills) ? local.skills : [];
+  const detectedSkills = environment.data?.claude.skills ?? [];
+  const toggleSkill = (name: string) =>
+    setLocal({
+      skills: chosenSkills.includes(name)
+        ? chosenSkills.filter((s) => s !== name)
+        : [...chosenSkills, name],
+    });
+
   const toggleCategory = (category: ApprovalCategory) =>
     set(
       'requireApprovalFor',
@@ -74,6 +106,7 @@ function SettingsForm({ settings }: { settings: SettingsDto }) {
         defaultBudget: form.defaultBudget,
         requireApprovalFor: form.requireApprovalFor,
         autoApproveAll: form.autoApproveAll,
+        localSetup: form.localSetup,
         autoAnswerQuestions: form.autoAnswerQuestions,
         questionTimeoutMs: form.questionTimeoutMs,
         maxHops: form.maxHops,
@@ -286,6 +319,164 @@ function SettingsForm({ settings }: { settings: SettingsDto }) {
             </Field>
           </Card>
 
+          <Card title="Your local Claude Code">
+            <button
+              type="button"
+              className={`auto-mode auto-mode-block auto-mode-${localOn ? 'on' : 'off'}`}
+              aria-pressed={localOn}
+              onClick={() => setLocalAll(!localOn)}
+            >
+              <span className="auto-mode-switch" aria-hidden>
+                <span className="auto-mode-knob" />
+              </span>
+              <span className="col" style={{ gap: 2, minWidth: 0, textAlign: 'left' }}>
+                <span className="strong">Reuse this machine's Claude Code setup</span>
+                <span className="tiny muted">
+                  Agents inherit your memory, skills and MCP servers instead of starting from
+                  nothing. Your Claude login is used either way.
+                </span>
+              </span>
+              <span className="auto-mode-state right">{localOn ? 'on' : 'off'}</span>
+            </button>
+
+            {local.settingSources.includes('user') && (
+              <div className="error-box" style={{ marginTop: 12 }}>
+                Your <span className="mono">~/.claude/settings.json</span> is loaded, including any
+                tools it pre-approves — those run without this app asking you. Capabilities set to
+                deny here are still refused.
+              </div>
+            )}
+
+            <hr />
+
+            <span className="label">Settings and memory</span>
+            <label className="checkbox">
+              <input
+                type="checkbox"
+                checked={local.settingSources.includes('user')}
+                onChange={() => toggleSource('user')}
+              />
+              <span>
+                <strong>Your user settings</strong>
+                <span className="hint">
+                  {' '}
+                  — <span className="mono">~/.claude/settings.json</span> and your user memory.
+                </span>
+              </span>
+            </label>
+            <label className="checkbox">
+              <input
+                type="checkbox"
+                checked={local.settingSources.includes('project')}
+                onChange={() => toggleSource('project')}
+              />
+              <span>
+                <strong>Workspace settings and CLAUDE.md</strong>
+                <span className="hint">
+                  {' '}
+                  — read from each agent's own workspace, so a team working in a repo picks up that
+                  repo's instructions.
+                </span>
+              </span>
+            </label>
+            <label className="checkbox">
+              <input
+                type="checkbox"
+                checked={local.settingSources.includes('local')}
+                onChange={() => toggleSource('local')}
+              />
+              <span>
+                <strong>Workspace local overrides</strong>
+                <span className="hint">
+                  {' '}
+                  — <span className="mono">.claude/settings.local.json</span>, the untracked one.
+                </span>
+              </span>
+            </label>
+
+            <hr />
+
+            <Field
+              label="Skills"
+              hint={
+                detectedSkills.length > 0
+                  ? `${detectedSkills.length} found on this machine.`
+                  : 'None found under ~/.claude/skills or the workspace.'
+              }
+            >
+              <Segmented<'none' | 'all' | 'pick'>
+                value={skillMode}
+                onChange={(mode) =>
+                  setLocal({ skills: mode === 'pick' ? chosenSkills : mode })
+                }
+                options={[
+                  { value: 'none', label: 'None' },
+                  { value: 'all', label: 'All' },
+                  { value: 'pick', label: 'Choose' },
+                ]}
+              />
+            </Field>
+            {skillMode === 'pick' && (
+              <div className="col" style={{ gap: 0 }}>
+                {detectedSkills.length === 0 && (
+                  <span className="tiny muted">
+                    Nothing to choose from — install a skill under{' '}
+                    <span className="mono">~/.claude/skills</span> first.
+                  </span>
+                )}
+                {detectedSkills.map((skill) => (
+                  <label key={skill.name} className="checkbox">
+                    <input
+                      type="checkbox"
+                      checked={chosenSkills.includes(skill.name)}
+                      onChange={() => toggleSkill(skill.name)}
+                    />
+                    <span>
+                      <strong>{skill.name}</strong>
+                      {skill.description && (
+                        <span className="hint"> — {truncate(skill.description, 90)}</span>
+                      )}
+                    </span>
+                  </label>
+                ))}
+              </div>
+            )}
+
+            <hr />
+
+            <label className="checkbox">
+              <input
+                type="checkbox"
+                checked={local.mcpServers}
+                onChange={(event) => setLocal({ mcpServers: event.target.checked })}
+              />
+              <span>
+                <strong>MCP servers configured on this machine</strong>
+                <span className="hint">
+                  {' '}
+                  — {environment.data?.claude.mcpServers.length ?? 0} found. Servers you logged into
+                  interactively may not connect from a background run.
+                </span>
+              </span>
+            </label>
+
+            <hr />
+
+            <Field
+              label="Claude executable"
+              hint="Empty uses the one bundled with the SDK. Point it at your own install to run that version instead; takes effect the next time the server starts."
+            >
+              <input
+                className="input mono"
+                placeholder={environment.data?.claude.cliPath ?? '/usr/local/bin/claude'}
+                value={local.executablePath ?? ''}
+                onChange={(event) =>
+                  setLocal({ executablePath: event.target.value.trim() || undefined })
+                }
+              />
+            </Field>
+          </Card>
+
           <Card title="Approvals">
             <span className="label">Always ask before</span>
             <div className="col" style={{ gap: 0 }}>
@@ -400,6 +591,16 @@ function SettingsForm({ settings }: { settings: SettingsDto }) {
                   <div className="spread">
                     <span className="muted">MCP servers</span>
                     <span>{environment.data.claude.mcpServers.length}</span>
+                  </div>
+                  <div className="spread">
+                    <span className="muted">Skills installed</span>
+                    <span>{environment.data.claude.skills.length}</span>
+                  </div>
+                  <div className="spread">
+                    <span className="muted">Agents inherit</span>
+                    <span className={localOn ? 'tone-warning' : undefined}>
+                      {localOn ? 'your local setup' : 'nothing (isolated)'}
+                    </span>
                   </div>
                 </div>
               )}

@@ -258,6 +258,17 @@ export const migrations: Migration[] = [
       db.exec('ALTER TABLE settings ADD COLUMN question_timeout_ms INTEGER NOT NULL DEFAULT 1800000');
     },
   },
+  {
+    id: 4,
+    name: '004_settings_local_setup',
+    // How much of the machine's own Claude Code configuration agents inherit.
+    // The default is the empty object, which normalises to full isolation —
+    // exactly what every existing installation does today, so upgrading
+    // changes nothing until the setting is turned on.
+    up(db) {
+      db.exec("ALTER TABLE settings ADD COLUMN local_setup TEXT NOT NULL DEFAULT '{}'");
+    },
+  },
 ];
 
 interface MigrationRow {

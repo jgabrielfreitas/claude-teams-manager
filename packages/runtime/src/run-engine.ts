@@ -614,6 +614,7 @@ export class RunEngine implements ToolHost {
         tools: this.effectiveTools(agent),
         customTools,
         cwd: agent.workspace ?? this.ctx.workspace,
+        localSetup: this.options.localSetup,
         maxTurns: agent.limits.maxTurns,
         timeoutMs: agent.limits.timeoutMs,
         sessionId: this.sessions.get(agent.id),

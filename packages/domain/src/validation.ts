@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { AGENT_EFFORTS } from './effort.js';
 import { PERMISSION_MODES, TOOL_GROUPS } from './permissions.js';
-import { AGENT_STATUSES, MESSAGE_TYPES } from './entities.js';
+import { AGENT_STATUSES, CLAUDE_SETTING_SOURCES, MESSAGE_TYPES } from './entities.js';
 
 /**
  * Input schemas shared by every entry point (TUI prompts, HTTP handlers, YAML
@@ -124,6 +124,18 @@ export const searchSchema = z.object({
   limit: z.number().int().min(1).max(200).optional(),
 });
 
+/**
+ * Reuse of the local Claude Code installation. `skills` accepts the two words
+ * the UI shows plus an explicit list, so a team can be given three skills
+ * without being given every skill on the machine.
+ */
+export const localSetupSchema = z.object({
+  settingSources: z.array(z.enum(CLAUDE_SETTING_SOURCES)).max(3),
+  skills: z.union([z.literal('none'), z.literal('all'), z.array(z.string().max(200)).max(200)]),
+  mcpServers: z.boolean(),
+  executablePath: z.string().max(1024).optional(),
+});
+
 export const updateSettingsSchema = z.object({
   onboardingCompleted: z.boolean().optional(),
   defaultWorkspace: z.string().max(1024).nullable().optional(),
@@ -135,6 +147,7 @@ export const updateSettingsSchema = z.object({
   defaultBudget: budgetSchema.optional(),
   requireApprovalFor: z.array(z.string()).optional(),
   autoApproveAll: z.boolean().optional(),
+  localSetup: localSetupSchema.optional(),
   autoAnswerQuestions: z.boolean().optional(),
   questionTimeoutMs: z.number().int().min(5000).max(24 * 60 * 60 * 1000).optional(),
   maxHops: z.number().int().min(1).max(64).optional(),

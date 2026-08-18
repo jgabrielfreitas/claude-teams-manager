@@ -295,6 +295,7 @@ export class AppCore {
   private applySettingsToEngine(settings: AppSettings): void {
     this.runs.setOptions({
       autoApproveAll: settings.autoApproveAll,
+      localSetup: settings.localSetup,
       autoAnswerQuestions: settings.autoAnswerQuestions,
       questionTimeoutMs: settings.questionTimeoutMs,
       requireApprovalFor: settings.requireApprovalFor,

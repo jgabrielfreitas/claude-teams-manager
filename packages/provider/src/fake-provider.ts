@@ -2,6 +2,7 @@ import {
   BUILTIN_CLAUDE_MODELS,
   DomainError,
   emptyUsage,
+  type LocalSetup,
   type ModelDefinition,
   type TokenUsage,
 } from '@claude-team/domain';
@@ -71,6 +72,8 @@ export interface RecordedActivation {
   maxTurns?: number;
   sessionId?: string;
   customToolNames: string[];
+  /** What the run decided to reuse from the local Claude Code installation. */
+  localSetup?: LocalSetup;
 }
 
 export class FakeAgentProvider implements AgentProvider {
@@ -130,6 +133,7 @@ export class FakeAgentProvider implements AgentProvider {
       cwd: input.cwd,
       maxTurns: input.maxTurns,
       sessionId: input.sessionId,
+      localSetup: input.localSetup,
       customToolNames: input.customTools.map((t) => t.name),
     });
 

@@ -4,9 +4,11 @@ import type {
   AgentQuestion,
   ApprovalDecision,
   ApprovalRequest,
+  LocalSetup,
   RunEvent,
   Team,
 } from '@claude-team/domain';
+import { ISOLATED_SETUP } from '@claude-team/domain';
 import type { AgentProvider } from '@claude-team/provider';
 import type { Storage } from '@claude-team/persistence';
 
@@ -48,6 +50,12 @@ export interface RunEngineOptions {
   questionTimeoutMs: number;
   /** Categories that always need a human, even when the capability says allow. */
   requireApprovalFor: string[];
+  /**
+   * How much of the machine's Claude Code installation agents inherit. Handed
+   * to the provider on every activation, so it is a property of the run rather
+   * than of the process.
+   */
+  localSetup: LocalSetup;
 }
 
 export const DEFAULT_ENGINE_OPTIONS: RunEngineOptions = {
@@ -62,6 +70,7 @@ export const DEFAULT_ENGINE_OPTIONS: RunEngineOptions = {
   autoAnswerQuestions: false,
   questionTimeoutMs: 30 * 60 * 1000,
   requireApprovalFor: ['shell', 'destructive', 'git'],
+  localSetup: ISOLATED_SETUP,
 };
 
 /** Resolved context for a single run, loaded once at start. */

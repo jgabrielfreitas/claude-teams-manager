@@ -155,6 +155,7 @@ export interface EnvironmentDto {
     authenticated: boolean;
     authMethod: 'api_key' | 'subscription' | 'none';
     mcpServers: Array<{ name: string; scope: string; transport: string }>;
+    skills: Array<{ name: string; scope: string; description?: string }>;
     availableTools: string[];
     sdkInstalled: boolean;
   };

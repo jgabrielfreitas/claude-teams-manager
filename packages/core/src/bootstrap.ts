@@ -38,7 +38,18 @@ export async function createAppCore(options: BootstrapOptions = {}): Promise<App
   // Settings decide the provider unless the caller forced one.
   const settings = await storage.settings.get();
   const providerId = options.provider ?? settings.provider ?? 'claude';
-  const provider = options.providerInstance ?? createProvider(providerId, options.providerOptions);
+  // The executable is the one provider option that cannot travel per activation:
+  // the health check has no activation to carry it. Everything else about
+  // reusing the local installation is passed per run, so Settings takes effect
+  // without a restart.
+  const provider =
+    options.providerInstance ??
+    createProvider(providerId, {
+      ...(settings.localSetup?.executablePath
+        ? { pathToClaudeCodeExecutable: settings.localSetup.executablePath }
+        : {}),
+      ...options.providerOptions,
+    });
 
   const core = new AppCore({ storage, provider });
   await core.init();

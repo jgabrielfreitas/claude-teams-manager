@@ -3,8 +3,11 @@ import { Box, Text } from 'ink';
 import {
   APPROVAL_CATEGORIES,
   APPROVAL_CATEGORY_LABELS,
+  ISOLATED_SETUP,
+  isIsolatedSetup,
   type AppSettings,
   type Budget,
+  type ClaudeSettingSource,
 } from '@claude-team/domain';
 import { EFFORT_UI, formatDuration, formatRelative } from '@claude-team/ui-shared';
 import { toneColor, UI } from '../theme.js';
@@ -63,6 +66,18 @@ async function editBoolean(ui: Ui, title: string, current: boolean, key: keyof A
   });
   if (value === undefined) return;
   await ui.guard(() => ui.core.updateSettings({ [key]: value === 'true' }), 'Settings saved.');
+}
+
+
+/** One line saying what of this machine a run inherits. */
+function describeLocalSetup(setup: AppSettings['localSetup']): string {
+  if (isIsolatedSetup(setup)) return 'off — agents start from nothing';
+  const parts: string[] = [];
+  if (setup.settingSources.length) parts.push(`settings: ${setup.settingSources.join('+')}`);
+  if (setup.skills === 'all') parts.push('all skills');
+  else if (Array.isArray(setup.skills) && setup.skills.length) parts.push(`${setup.skills.length} skill(s)`);
+  if (setup.mcpServers) parts.push('MCP servers');
+  return `on — ${parts.join(', ')}`;
 }
 
 const ROWS: Row[] = [
@@ -210,6 +225,153 @@ const ROWS: Row[] = [
     help: 'How long a question waits for a human before it is answered automatically anyway (milliseconds). A blocked agent is never left waiting for ever.',
     edit: (ui, s) =>
       editNumber(ui, 'Question timeout (ms)', s.questionTimeoutMs, (v) => ({ questionTimeoutMs: v })),
+  },
+  {
+    id: 'localSetup',
+    label: 'Local Claude Code',
+    value: (s) => describeLocalSetup(s.localSetup),
+    help: "How much of this machine's own Claude Code setup agents inherit: your memory, your skills, your MCP servers. Your Claude login is used either way — this is about configuration, not credentials. Off keeps a team behaving the same on every machine.",
+    edit: async (ui, s) => {
+      const value = await ui.dialogs.select({
+        title: 'Reuse this machine\'s Claude Code setup',
+        help: 'On loads your user and workspace settings, every installed skill, and the MCP servers configured here.',
+        items: [
+          { value: 'true', label: 'on — inherit memory, skills and MCP', tone: 'warning' },
+          { value: 'false', label: 'off — isolated, same on every machine', tone: 'success' },
+        ],
+        initialValue: String(!isIsolatedSetup(s.localSetup)),
+      });
+      if (value === undefined) return;
+      const localSetup =
+        value === 'true'
+          ? { settingSources: ['user', 'project'] as ClaudeSettingSource[], skills: 'all' as const, mcpServers: true }
+          : { ...ISOLATED_SETUP };
+      await ui.guard(
+        () => ui.core.updateSettings({ localSetup: { ...localSetup, ...(s.localSetup.executablePath ? { executablePath: s.localSetup.executablePath } : {}) } }),
+        'Settings saved.',
+      );
+      if (value === 'true') {
+        ui.notify('Your settings.json can pre-approve tools, which then run without asking.', 'warning');
+      }
+    },
+  },
+  {
+    id: 'localSettingSources',
+    label: '· settings & memory',
+    value: (s) => (s.localSetup.settingSources.length ? s.localSetup.settingSources.join(', ') : 'none'),
+    help: 'Which Claude Code setting files agents load. `project` is what brings in the CLAUDE.md of the agent\'s workspace; `user` brings in your own settings and memory, including any tool it pre-approves.',
+    edit: async (ui, s) => {
+      const selected = await ui.dialogs.multiselect({
+        title: 'Settings files agents load',
+        items: [
+          { value: 'user', label: 'user — ~/.claude/settings.json and your memory' },
+          { value: 'project', label: 'project — workspace settings and CLAUDE.md' },
+          { value: 'local', label: 'local — .claude/settings.local.json' },
+        ],
+        selected: s.localSetup.settingSources,
+      });
+      if (!selected) return;
+      await ui.guard(
+        () =>
+          ui.core.updateSettings({
+            localSetup: { ...s.localSetup, settingSources: selected as ClaudeSettingSource[] },
+          }),
+        'Settings saved.',
+      );
+    },
+  },
+  {
+    id: 'localSkills',
+    label: '· skills',
+    value: (s) =>
+      s.localSetup.skills === 'all'
+        ? 'all installed skills'
+        : Array.isArray(s.localSetup.skills) && s.localSetup.skills.length
+          ? s.localSetup.skills.join(', ')
+          : 'none',
+    help: 'Skills installed on this machine that agents may invoke. Choosing specific ones keeps an agent focused instead of handing it everything you have.',
+    edit: async (ui, s) => {
+      const mode = await ui.dialogs.select({
+        title: 'Skills available to agents',
+        items: [
+          { value: 'none', label: 'none', tone: 'muted' },
+          { value: 'all', label: 'all installed skills' },
+          { value: 'pick', label: 'choose from the installed skills' },
+        ],
+        initialValue:
+          s.localSetup.skills === 'all' ? 'all' : s.localSetup.skills === 'none' ? 'none' : 'pick',
+      });
+      if (mode === undefined) return;
+      if (mode !== 'pick') {
+        await ui.guard(
+          () => ui.core.updateSettings({ localSetup: { ...s.localSetup, skills: mode as 'all' | 'none' } }),
+          'Settings saved.',
+        );
+        return;
+      }
+      const env = await ui.guard(() => ui.core.detectEnvironment());
+      const installed = env?.claude.skills ?? [];
+      if (installed.length === 0) {
+        ui.notify('No skills found under ~/.claude/skills or the workspace.', 'warning');
+        return;
+      }
+      const selected = await ui.dialogs.multiselect({
+        title: 'Skills available to agents',
+        items: installed.map((skill) => ({ value: skill.name, label: skill.name, hint: skill.scope })),
+        selected: Array.isArray(s.localSetup.skills) ? s.localSetup.skills : [],
+      });
+      if (!selected) return;
+      await ui.guard(
+        () => ui.core.updateSettings({ localSetup: { ...s.localSetup, skills: selected } }),
+        'Settings saved.',
+      );
+    },
+  },
+  {
+    id: 'localMcpServers',
+    label: '· MCP servers',
+    value: (s) => (s.localSetup.mcpServers ? 'reused from this machine' : 'none'),
+    help: 'Reuse the MCP servers already configured here. Servers you logged into interactively may not connect from a background run; a stdio server started from a command always will.',
+    edit: async (ui, s) => {
+      const value = await ui.dialogs.select({
+        title: 'MCP servers configured on this machine',
+        items: [
+          { value: 'true', label: 'reuse them' },
+          { value: 'false', label: 'do not', tone: 'muted' },
+        ],
+        initialValue: String(s.localSetup.mcpServers),
+      });
+      if (value === undefined) return;
+      await ui.guard(
+        () => ui.core.updateSettings({ localSetup: { ...s.localSetup, mcpServers: value === 'true' } }),
+        'Settings saved.',
+      );
+    },
+  },
+  {
+    id: 'localExecutable',
+    label: '· claude executable',
+    value: (s) => s.localSetup.executablePath ?? 'bundled with the SDK',
+    help: 'The `claude` binary to spawn. Empty uses the one the SDK ships with, which is pinned and therefore reproducible. Point it at your own install to run that version instead; applies the next time claude-team starts.',
+    edit: async (ui, s) => {
+      const raw = await ui.dialogs.text({
+        title: 'Claude executable',
+        label: 'path',
+        initial: s.localSetup.executablePath ?? '',
+      });
+      if (raw === undefined) return;
+      const executablePath = raw.trim();
+      await ui.guard(
+        () =>
+          ui.core.updateSettings({
+            localSetup: {
+              ...s.localSetup,
+              ...(executablePath ? { executablePath } : { executablePath: undefined }),
+            },
+          }),
+        'Settings saved.',
+      );
+    },
   },
   {
     id: 'requireApprovalFor',
@@ -449,6 +611,14 @@ export function SettingsView({ height, columns, narrow }: ViewProps): React.JSX.
                   environment.claude.mcpServers.length
                     ? environment.claude.mcpServers.map((server) => server.name).join(', ')
                     : 'none configured'
+                }
+              />
+              <Field
+                label="skills"
+                value={
+                  environment.claude.skills.length
+                    ? environment.claude.skills.map((skill) => skill.name).join(', ')
+                    : 'none installed'
                 }
               />
               <Field

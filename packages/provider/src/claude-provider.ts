@@ -6,9 +6,11 @@ import {
   emptyUsage,
   estimateCostUsd,
   toDomainError,
+  type LocalSetup,
   type ModelDefinition,
   type TokenUsage,
 } from '@claude-team/domain';
+import { loadLocalMcpServers } from './detect.js';
 import { toClaudeEffort } from './effort-adapter.js';
 import {
   approvalCategoryFor,
@@ -75,12 +77,48 @@ export interface ClaudeProviderOptions {
   /** Override the `claude` executable the SDK spawns. */
   pathToClaudeCodeExecutable?: string;
   /**
-   * Which of the user's own Claude Code setting files to load. Defaults to
-   * none, so a team behaves identically on every machine.
+   * Fallback for activations that carry no `localSetup` of their own. Defaults
+   * to none, so a team behaves identically on every machine until someone opts
+   * in through Settings.
    */
   settingSources?: Array<'user' | 'project' | 'local'>;
   /** Extra MCP servers made available to every agent. */
   mcpServers?: Record<string, unknown>;
+}
+
+/** The SDK options that reusing the local installation actually turns into. */
+export interface LocalSetupOptions {
+  settingSources: Array<'user' | 'project' | 'local'>;
+  skills?: string[] | 'all';
+  pathToClaudeCodeExecutable?: string;
+  /** True when the machine's MCP servers should be loaded and merged in. */
+  useLocalMcpServers: boolean;
+}
+
+/**
+ * Translates the stored setting into SDK options.
+ *
+ * Pure and exported so the mapping can be asserted in a test rather than only
+ * by spawning Claude: this is the seam where "reuse my machine" stops being a
+ * product idea and becomes flags on a subprocess.
+ */
+export function resolveLocalSetup(
+  setup: LocalSetup | undefined,
+  fallback: ClaudeProviderOptions,
+): LocalSetupOptions {
+  const skills = setup?.skills ?? 'none';
+  const listed = Array.isArray(skills) ? skills.filter((s) => s.trim().length > 0) : undefined;
+  const executablePath = setup?.executablePath ?? fallback.pathToClaudeCodeExecutable;
+
+  return {
+    settingSources: setup?.settingSources ?? fallback.settingSources ?? [],
+    // `skills` is omitted rather than emptied for "none": passing an empty list
+    // would still enable the Skill tool with nothing behind it.
+    ...(skills === 'all' ? { skills: 'all' as const } : {}),
+    ...(listed && listed.length > 0 ? { skills: listed } : {}),
+    ...(executablePath ? { pathToClaudeCodeExecutable: executablePath } : {}),
+    useLocalMcpServers: setup?.mcpServers === true,
+  };
 }
 
 export class ClaudeProvider implements AgentProvider {
@@ -89,9 +127,21 @@ export class ClaudeProvider implements AgentProvider {
 
   private readonly activations = new Map<string, Activation>();
   private modelCache?: ModelDefinition[];
+  /** Per-workspace cache; reading two small JSON files per activation is waste. */
+  private readonly localMcpCache = new Map<string, Promise<Record<string, unknown>>>();
 
   constructor(private readonly options: ClaudeProviderOptions = {}) {
     suppressExpectedShadowWarning();
+  }
+
+  private localMcpServers(cwd: string | undefined): Promise<Record<string, unknown>> {
+    const key = cwd ?? process.cwd();
+    let cached = this.localMcpCache.get(key);
+    if (!cached) {
+      cached = loadLocalMcpServers(key).catch(() => ({}));
+      this.localMcpCache.set(key, cached);
+    }
+    return cached;
   }
 
   async cancel(activationId: string): Promise<void> {
@@ -250,7 +300,14 @@ export class ClaudeProvider implements AgentProvider {
         input.customTools.map((t) => qualifiedToolName(t.name)),
       );
 
-      const mcpServers: Record<string, unknown> = { ...(this.options.mcpServers ?? {}) };
+      const local = resolveLocalSetup(input.localSetup, this.options);
+
+      const mcpServers: Record<string, unknown> = {
+        // Order matters: the machine's servers first, ours last, so a local
+        // server sharing our name can never displace agent messaging.
+        ...(local.useLocalMcpServers ? await this.localMcpServers(input.cwd) : {}),
+        ...(this.options.mcpServers ?? {}),
+      };
       if (input.customTools.length > 0) {
         mcpServers[TEAM_TOOL_SERVER] = buildTeamToolServer(input.customTools);
       }
@@ -268,14 +325,15 @@ export class ClaudeProvider implements AgentProvider {
           permissionMode: 'default',
           canUseTool: this.buildPermissionCallback(input, grants.askTools),
           mcpServers,
-          // Deliberately isolated from the user's own Claude Code configuration
-          // so a team behaves the same on every machine.
-          settingSources: this.options.settingSources ?? [],
+          // Isolated from the user's own Claude Code configuration unless they
+          // asked for it in Settings; see `resolveLocalSetup`.
+          settingSources: local.settingSources,
+          ...(local.skills ? { skills: local.skills } : {}),
           abortController: abort,
           ...(input.sessionId ? { resume: input.sessionId } : {}),
           ...(input.env ? { env: { ...process.env, ...input.env } } : {}),
-          ...(this.options.pathToClaudeCodeExecutable
-            ? { pathToClaudeCodeExecutable: this.options.pathToClaudeCodeExecutable }
+          ...(local.pathToClaudeCodeExecutable
+            ? { pathToClaudeCodeExecutable: local.pathToClaudeCodeExecutable }
             : {}),
         } as never,
       });
