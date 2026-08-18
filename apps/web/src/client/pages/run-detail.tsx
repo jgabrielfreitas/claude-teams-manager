@@ -188,6 +188,19 @@ export function RunDetailPage() {
                     {ACTION_LABEL[action]}
                   </button>
                 ))}
+                <button
+                  type="button"
+                  className="btn btn-ghost"
+                  title={
+                    data.isActive
+                      ? 'Cancel the run before deleting it'
+                      : 'Delete this run and everything under it'
+                  }
+                  disabled={data.isActive}
+                  onClick={() => setParam('action', 'delete')}
+                >
+                  Delete
+                </button>
               </div>
             </div>
 
@@ -350,6 +363,13 @@ export function RunDetailPage() {
                 runId={runId}
                 agents={data.agents}
                 onClose={() => setMessageOpen(false)}
+              />
+            )}
+
+            {params.get('action') === 'delete' && (
+              <DeleteRunDialog
+                data={data}
+                onClose={() => setParam('action', undefined)}
               />
             )}
 
@@ -570,6 +590,64 @@ function ReplayTimeline({ data }: { data: RunDetailDto }) {
 /* ------------------------------------------------------------------ *
  * Message into the run
  * ------------------------------------------------------------------ */
+
+/**
+ * Deleting a run is the one action here that cannot be undone by another one:
+ * cancel leaves the history, delete removes it. So it says exactly how much
+ * history is about to go, and asks for the objective to be typed — the same
+ * bar as deleting a team.
+ */
+function DeleteRunDialog({ data, onClose }: { data: RunDetailDto; onClose: () => void }) {
+  const act = useAction();
+  const navigate = useNavigate();
+  const [confirm, setConfirm] = useState('');
+  // Long objectives are unreasonable to retype; the first few words are enough
+  // to prove you are looking at the right run.
+  const phrase = data.run.objective.trim().split(/\s+/).slice(0, 4).join(' ');
+
+  return (
+    <Modal
+      title="Delete run"
+      onClose={onClose}
+      footer={
+        <>
+          <button type="button" className="btn" onClick={onClose}>
+            Cancel
+          </button>
+          <button
+            type="button"
+            className="btn btn-danger"
+            disabled={confirm.trim() !== phrase}
+            onClick={() =>
+              void act(async () => {
+                await client.deleteRun(data.run.id);
+                onClose();
+                navigate('/runs');
+              }, 'Run deleted')
+            }
+          >
+            Delete permanently
+          </button>
+        </>
+      }
+    >
+      <p className="small">
+        This removes the run and everything under it: {data.tasks.length} task(s),{' '}
+        {data.messages.length} message(s), {data.events.length} timeline entries, and its
+        approvals and questions. The team and its agents are untouched.
+      </p>
+      <p className="small">
+        Type <strong>{phrase}</strong> to confirm.
+      </p>
+      <input
+        className="input"
+        autoFocus
+        value={confirm}
+        onChange={(event) => setConfirm(event.target.value)}
+      />
+    </Modal>
+  );
+}
 
 function SendMessageDialog({
   runId,

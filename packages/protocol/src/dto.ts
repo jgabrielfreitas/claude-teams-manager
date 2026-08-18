@@ -206,6 +206,7 @@ export type AppEventDto =
   | { type: 'run.event'; runId: string; event: RunEventDto }
   | { type: 'run.status'; runId: string; status: RunStatus; run?: RunDto }
   | { type: 'run.created'; run: RunDto }
+  | { type: 'run.deleted'; runId: string }
   | { type: 'agent.status'; agentId: string; status: AgentStatus }
   | { type: 'message'; message: MessageDto }
   | { type: 'approval'; approval: ApprovalDto }
@@ -222,6 +223,7 @@ export function eventTouchesRun(event: AppEventDto, runId: string): boolean {
     case 'run.event':
     case 'run.status':
     case 'task.changed':
+    case 'run.deleted':
       return event.runId === runId;
     case 'run.created':
       return event.run.id === runId;

@@ -465,6 +465,13 @@ Runs support `start`, `pause`, `resume`, `cancel` and `retry`. Pausing takes
 effect at the next safe point, so in-flight agent activations finish rather than
 being torn in half.
 
+A run can also be **deleted** — from the run page, from the row in the runs
+list, with `d` in the TUI, or from the command palette. Unlike cancelling, this
+removes the history: tasks, messages, timeline, approvals and questions all go
+with it, and both surfaces say how much before asking you to confirm. The team
+and its agents are untouched. A run that is still executing is refused; cancel
+it first.
+
 ### Observability
 
 Every run has a complete, sequence-numbered timeline:
@@ -741,7 +748,7 @@ pnpm web -- --provider fake
 pnpm test
 ```
 
-204 tests, none of which touch the Claude API:
+208 tests, none of which touch the Claude API:
 
 - **Domain** — agent and team creation, handle uniqueness, cloning semantics,
   effort coercion, capability resolution, destructive-command detection, message

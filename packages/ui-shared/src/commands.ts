@@ -99,6 +99,7 @@ export const COMMANDS: CommandDefinition[] = [
   { id: 'run.retry', title: 'Retry Run', group: 'Run', requires: 'run' },
   { id: 'run.logs', title: 'Open Run Timeline', group: 'Run', requires: 'run', key: 'l' },
   { id: 'run.replay', title: 'Replay Run', group: 'Run', requires: 'run' },
+  { id: 'run.delete', title: 'Delete Run', group: 'Run', requires: 'run', key: 'd', destructive: true },
 
   // App
   { id: 'app.search', title: 'Search', group: 'App', key: '/' },
@@ -160,14 +161,20 @@ export const SECTIONS = [
 
 export type SectionId = (typeof SECTIONS)[number]['id'];
 
-/** The TUI footer hint line, so the key legend never drifts from the bindings. */
+/**
+ * The TUI footer hint line, so the key legend never drifts from the bindings.
+ *
+ * Only keys that work in *every* section belong here. `d delete` used to, and
+ * advertised a binding that four of the seven sections did not have — the
+ * footer said the key existed and pressing it did nothing. Section-specific
+ * keys are listed by the section itself.
+ */
 export const KEY_LEGEND: Array<{ key: string; label: string }> = [
   { key: '↑↓', label: 'navigate' },
   { key: '↵', label: 'select' },
   { key: 'tab', label: 'panel' },
   { key: 'c', label: 'create' },
   { key: 'e', label: 'edit' },
-  { key: 'd', label: 'delete' },
   { key: 'r', label: 'run' },
   { key: 'm', label: 'message' },
   { key: 'l', label: 'logs' },

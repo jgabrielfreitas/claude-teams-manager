@@ -22,6 +22,7 @@ export type AppEvent =
   | { type: 'run.event'; runId: string; event: RunEvent }
   | { type: 'run.status'; runId: string; status: RunStatus; run?: Run }
   | { type: 'run.created'; run: Run }
+  | { type: 'run.deleted'; runId: string }
   | { type: 'agent.status'; agentId: string; status: AgentStatus }
   | { type: 'message'; message: AgentMessage }
   | { type: 'approval'; approval: ApprovalRequest }

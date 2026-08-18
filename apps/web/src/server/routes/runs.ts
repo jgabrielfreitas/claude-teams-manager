@@ -56,5 +56,10 @@ export function runRoutes(core: AppCore): Hono {
 
   app.get('/api/runs/:id', async (c) => c.json(await core.getRunDetail(c.req.param('id'))));
 
+  app.delete('/api/runs/:id', async (c) => {
+    await core.deleteRun(c.req.param('id'));
+    return c.json({ ok: true } as const);
+  });
+
   return app;
 }

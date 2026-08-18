@@ -72,6 +72,7 @@ export function RunsPage() {
                       <th>Cost</th>
                       <th>Duration</th>
                       <th>Started</th>
+                      <th style={{ width: 1 }}></th>
                     </tr>
                   </thead>
                   <tbody>
@@ -94,6 +95,19 @@ export function RunsPage() {
                         <td className="small nowrap">{formatUsd(run.totals.costUsd)}</td>
                         <td className="small nowrap">{formatDuration(runDurationMs(run))}</td>
                         <td className="small nowrap muted">{formatRelative(run.createdAt)}</td>
+                        <td>
+                          {/* Opens the run's own confirmation rather than
+                              deleting from the list, so there is one dialog
+                              and one description of what is lost. */}
+                          <Link
+                            className="btn btn-ghost btn-sm"
+                            to={`/runs/${run.id}?action=delete`}
+                            title="Delete this run"
+                            aria-label={`Delete run: ${run.objective}`}
+                          >
+                            Delete
+                          </Link>
+                        </td>
                       </tr>
                     ))}
                   </tbody>

@@ -1113,6 +1113,25 @@ export class AppCore {
     return run;
   }
 
+  /**
+   * Removes a run and everything under it: tasks, messages, timeline,
+   * approvals and questions.
+   *
+   * Refused while the run is executing here, for the same reason deleting a
+   * team with a live run is refused — the engine is holding rows this would
+   * pull out from under it. Cancel first. A run left `paused` by a restart is
+   * not executing, so it can be deleted; that is usually exactly what someone
+   * clearing out old runs wants.
+   */
+  async deleteRun(runId: string): Promise<void> {
+    await this.getRun(runId);
+    if (this.runs.isActive(runId)) {
+      throw illegalState('This run is still executing. Cancel it before deleting it.');
+    }
+    await this.deps.storage.runs.delete(runId);
+    this.emit({ type: 'run.deleted', runId });
+  }
+
   /** Creates a fresh run with the same objective, and starts it. */
   async retryRun(runId: string): Promise<Run> {
     const previous = await this.getRun(runId);

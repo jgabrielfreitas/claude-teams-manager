@@ -108,11 +108,14 @@ Environment
   CLAUDE_TEAM_HOME    directory holding the database (default: ~/.claude-team)
 
 Keys inside the interface
-  1-7 sections   tab panel   c create   e edit   d delete   r run   m message
+  1-7 sections   tab panel   c create   e edit   r run   m message
   l logs   i inspect   / search   ctrl+k command palette   ? help   q quit
 
+Keys in the Teams and Agents sections
+  d delete
+
 Keys in the Runs section
-  f full screen   y copy transcript   e export transcript
+  d delete run   f full screen   y copy transcript   e export transcript
 
 Keys in the full-screen run view
   t switch tab   ↑↓ / PgUp PgDn scroll   g top   G end   f follow again

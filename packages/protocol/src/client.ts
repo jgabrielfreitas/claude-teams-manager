@@ -140,6 +140,7 @@ export class ApiClient {
   resumeRun = (id: string) => this.post<RunDto>(routes.runResume(id));
   cancelRun = (id: string) => this.post<RunDto>(routes.runCancel(id));
   retryRun = (id: string) => this.post<RunDto>(routes.runRetry(id));
+  deleteRun = (id: string) => this.del<{ ok: true }>(routes.run(id));
   getRunEvents = (id: string, afterSeq = 0) =>
     this.request<RunEventDto[]>(routes.runEvents(id, afterSeq));
   /** The full run transcript, for copying to the clipboard. */

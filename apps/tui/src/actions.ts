@@ -577,6 +577,36 @@ export async function runAction(ui: Ui, action: 'pause' | 'resume' | 'cancel' | 
   if (next) ui.select({ runId: next.id, teamId: next.teamId });
 }
 
+/**
+ * Removes a run and its whole history.
+ *
+ * Unlike cancel, this cannot be looked at afterwards, so the prompt counts what
+ * goes with it. The core refuses a run that is still executing; the message
+ * here says the same thing before the round trip, because being told "cancel it
+ * first" only after confirming a destructive action is poor manners.
+ */
+export async function deleteRun(ui: Ui): Promise<void> {
+  const run = await currentRun(ui);
+  if (!run) return;
+
+  const detail = await ui.guard(() => ui.core.getRunDetail(run.id));
+  if (!detail) return;
+  if (detail.isActive) {
+    ui.notify('This run is still executing. Cancel it (x) before deleting it.', 'warning');
+    return;
+  }
+
+  const ok = await ui.dialogs.confirm({
+    title: 'Delete this run?',
+    message: `${truncate(run.objective, 60)} — ${detail.tasks.length} task(s), ${detail.messages.length} message(s) and ${detail.events.length} timeline entries go with it. The team is untouched.`,
+    danger: true,
+  });
+  if (!ok) return;
+
+  const done = await ui.guard(() => ui.core.deleteRun(run.id), 'Run deleted.');
+  if (done !== undefined) ui.select({ runId: undefined });
+}
+
 /* ------------------------------------------------------------------ *
  * Questions
  * ------------------------------------------------------------------ */
@@ -767,6 +797,8 @@ export async function executeCommand(id: string, ui: Ui): Promise<void> {
       return runAction(ui, 'resume');
     case 'run.cancel':
       return runAction(ui, 'cancel');
+    case 'run.delete':
+      return deleteRun(ui);
     case 'run.retry':
       return runAction(ui, 'retry');
     case 'run.logs': {

@@ -248,6 +248,7 @@ function keysForEvent(event: AppEvent): RevKey[] {
       return ['events', 'runs'];
     case 'run.status':
     case 'run.created':
+    case 'run.deleted':
       return ['runs', 'events'];
     case 'task.changed':
       return ['runs', 'events'];
@@ -405,6 +406,12 @@ export function UiProvider({
         if (question.status !== 'pending') {
           setDismissed((prev) => prev.filter((id) => id !== question.id));
         }
+      }
+      // A run deleted anywhere — here, the other surface, another window —
+      // must not stay selected, or every view keeps asking for an id that no
+      // longer exists.
+      if (event.type === 'run.deleted') {
+        setSelection((prev) => (prev.runId === event.runId ? { ...prev, runId: undefined } : prev));
       }
       if (event.type === 'notice') {
         setStatus({
