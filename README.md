@@ -1,5 +1,17 @@
 # Claude Team Manager
 
+> **Experimental — alpha (v0.1.0).**
+> This is a project under active exploration, not a finished product. It works
+> end to end and it is covered by tests, but nothing here is stable yet: the
+> screens, the team file format and the HTTP contract can change between
+> commits. Database changes do ship as migrations, so your data survives an
+> upgrade; a team file you wrote by hand might not.
+>
+> It also spends real money — agents run against your Claude account — and it
+> can write to your filesystem and run commands, within the capabilities you
+> grant. Try it in a throwaway workspace first, keep budgets on, and read what
+> an agent is asking for before approving it.
+
 Build, configure and run **teams of specialised Claude agents** that coordinate
 on a single objective — from a terminal UI or from a browser, backed by one
 shared application core.
