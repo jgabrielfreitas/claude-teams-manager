@@ -5,6 +5,7 @@ import {
   availableRunActions,
   budgetProblem,
   describeBudget,
+  isRunTerminal,
   isUnmetered,
   shortModelLabel,
   slugify,
@@ -594,10 +595,14 @@ export async function messageAgent(ui: Ui): Promise<void> {
   if (!run || run.teamId !== agent.teamId) run = await pickRun(ui, agent.teamId);
   if (!run) return;
   const target = run;
+  const finished = isRunTerminal(target.status);
   const content = await ui.dialogs.text({
     title: `Message ${agent.handle}`,
     label: 'you',
-    placeholder: 'What should this agent do next?',
+    placeholder: finished ? 'Ask this agent about the run…' : 'What should this agent do next?',
+    help: finished
+      ? `This run already ${target.status}; the agent is reopened just to answer, and still remembers it.`
+      : undefined,
   });
   if (!content?.trim()) return;
   await ui.guard(
@@ -609,7 +614,7 @@ export async function messageAgent(ui: Ui): Promise<void> {
         content,
         type: 'message',
       }),
-    `Message delivered to ${agent.handle}.`,
+    `${agent.handle} is answering — watch the run.`,
   );
 }
 

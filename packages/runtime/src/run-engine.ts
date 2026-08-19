@@ -5,7 +5,9 @@ import {
   categoryForGroup,
   createTask,
   emptyUsage,
+  isRunTerminal,
   isTaskTerminal,
+  notFound,
   readyTasks,
   recomputeTaskStatuses,
   toDomainError,
@@ -28,6 +30,7 @@ import { MessageBus, Mutex } from './message-bus.js';
 import { EventRecorder } from './recorder.js';
 import {
   buildAnswerPrompt,
+  buildHumanMessagePrompt,
   buildOrchestratorPrompt,
   buildReviewPrompt,
   buildSystemPrompt,
@@ -742,7 +745,11 @@ export class RunEngine implements ToolHost {
         summary: ok
           ? `${agent.handle} finished in ${formatDuration(durationMs)}`
           : `${agent.handle} failed: ${error}`,
-        data: { purpose: opts.purpose, ok, error },
+        // The session the provider actually used. `agent_started` can only
+        // carry the id from *before* the activation, which is undefined the
+        // first time — so a run with one activation per agent had no session in
+        // its timeline at all, and reopening it later started from nothing.
+        data: { purpose: opts.purpose, ok, error, sessionId: this.sessions.get(agent.id) },
       });
       await this.setAgentStatus(agent, ok ? 'idle' : 'failed');
       await this.persistTotals();
@@ -757,6 +764,84 @@ export class RunEngine implements ToolHost {
       durationMs: Date.now() - startedAt,
       costUsd,
     };
+  }
+
+  /**
+   * Answers a message the human sent to one agent.
+   *
+   * This is the path for writing to an agent after the run is over, which is
+   * the common case: you read the result and want to ask about it. The agent is
+   * activated once, resuming its own provider session, so it answers with the
+   * run still in its head — and its answer becomes a real message back to you,
+   * not just a line in the timeline.
+   *
+   * The run's own state is left alone. A finished run stays finished: it is not
+   * secretly running again because somebody asked a question, and the state
+   * machine has no transition out of a terminal state for good reasons.
+   */
+  async replyToHuman(agentId: string, message: AgentMessage): Promise<ActivationResult> {
+    if (this.sessions.size === 0) await this.restoreSessions();
+    const agent = this.agents.find((a) => a.id === agentId);
+    if (!agent) throw notFound('Agent', agentId);
+
+    await this.recorder.record({
+      runId: this.run.id,
+      type: 'message_received',
+      agentId: agent.id,
+      messageId: message.id,
+      taskId: message.taskId,
+      summary: `${agent.handle} received your message: ${firstLine(message.content)}`,
+      data: { fromUser: true },
+    });
+    await this.deps.storage.messages.update({ ...message, status: 'processing' });
+
+    const finished = isRunTerminal(this.run.status);
+    const result = await this.activate({
+      agent,
+      prompt: buildHumanMessagePrompt({
+        message: message.content,
+        objective: this.run.objective,
+        runStatus: this.run.status,
+        finished,
+      }),
+      taskId: message.taskId,
+      isOrchestrator: agent.id === this.ctx.orchestrator.id,
+      purpose: 'answer',
+    });
+
+    await this.deps.storage.messages.update({
+      ...message,
+      status: result.ok ? 'completed' : 'failed',
+      error: result.ok ? undefined : result.error,
+      completedAt: new Date(),
+    });
+
+    if (result.ok && result.text.trim()) {
+      // Sent through the bus so it is an ordinary message with a sequence
+      // number, an event and a reply link — indistinguishable from any other
+      // answer in the conversation, because that is what it is.
+      await this.bus.send({
+        from: agent,
+        to: ['user'],
+        type: 'answer',
+        content: result.text.trim(),
+        replyTo: message.id,
+        taskId: message.taskId,
+      });
+    } else if (!result.ok) {
+      await this.recorder.record({
+        runId: this.run.id,
+        type: 'error',
+        agentId: agent.id,
+        level: 'error',
+        summary: `${agent.handle} could not answer you: ${result.error ?? 'unknown error'}`,
+        data: { messageId: message.id },
+      });
+    }
+
+    await this.persistTotals();
+    await this.setAgentStatus(agent, finished ? 'completed' : 'idle');
+    return result;
   }
 
   /** Activates an agent to answer a synchronous question from a teammate. */
@@ -1160,11 +1245,19 @@ export class RunEngine implements ToolHost {
     return fresh;
   }
 
-  /** Rebuilds provider session ids after a restart, from the timeline. */
+  /**
+   * Rebuilds provider session ids from the timeline, so an agent picked up
+   * later — after a restart, or to answer a message once the run is over —
+   * continues its own conversation instead of starting a new one.
+   *
+   * Both event types are read, in sequence order, because `agent_started`
+   * records the session it resumed and `agent_stopped` records the one the
+   * activation ended with. The last value wins.
+   */
   private async restoreSessions(): Promise<void> {
     const events = await this.deps.storage.events.list({
       runId: this.run.id,
-      types: ['agent_started'],
+      types: ['agent_started', 'agent_stopped'],
     });
     for (const event of events) {
       const sessionId = event.data?.sessionId;

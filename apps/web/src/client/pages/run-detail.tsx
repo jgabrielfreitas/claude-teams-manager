@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
   availableRunActions,
   describeBudget,
+  isRunTerminal,
   isUnmetered,
   type RunAction,
 } from '@claude-team/domain';
@@ -395,6 +396,7 @@ export function RunDetailPage() {
               <SendMessageDialog
                 runId={runId}
                 agents={data.agents}
+                finished={isRunTerminal(data.run.status)}
                 onClose={() => setMessageOpen(false)}
               />
             )}
@@ -685,19 +687,22 @@ function DeleteRunDialog({ data, onClose }: { data: RunDetailDto; onClose: () =>
 function SendMessageDialog({
   runId,
   agents,
+  finished,
   onClose,
 }: {
   runId: string;
   agents: RunDetailDto['agents'];
+  finished: boolean;
   onClose: () => void;
 }) {
   const act = useAction();
   const [to, setTo] = useState(agents[0]?.id ?? '');
   const [content, setContent] = useState('');
+  const recipient = agents.find((agent) => agent.id === to);
 
   return (
     <Modal
-      title="Send a message into this run"
+      title={finished ? 'Ask an agent about this run' : 'Send a message into this run'}
       onClose={onClose}
       footer={
         <>
@@ -712,7 +717,7 @@ function SendMessageDialog({
               void act(async () => {
                 await client.sendMessage({ runId, from: 'user', to: [to], content });
                 onClose();
-              }, 'Message delivered')
+              }, `${recipient?.handle ?? 'The agent'} is answering — the reply appears in the conversation`)
             }
           >
             Send
@@ -729,7 +734,14 @@ function SendMessageDialog({
           ))}
         </select>
       </Field>
-      <Field label="Message">
+      <Field
+        label="Message"
+        hint={
+          finished
+            ? 'The run is over, so the agent is reopened just to answer. It still remembers this run.'
+            : 'It reaches the agent as soon as it finishes what it is doing.'
+        }
+      >
         <textarea
           className="textarea"
           autoFocus

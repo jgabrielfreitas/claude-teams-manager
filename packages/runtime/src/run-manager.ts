@@ -5,6 +5,7 @@ import {
   illegalState,
   notFound,
   type AgentConfigSnapshot,
+  type AgentMessage,
   type ApprovalDecision,
   type Budget,
   type Run,
@@ -24,6 +25,8 @@ import { DEFAULT_ENGINE_OPTIONS, type RunContext, type RunEngineOptions, type Ru
 export class RunManager {
   private readonly engines = new Map<string, RunEngine>();
   private readonly running = new Map<string, Promise<Run>>();
+  /** Answers being written for runs that are not otherwise executing. */
+  private readonly replying = new Map<string, Promise<void>>();
   private readonly recorder: EventRecorder;
 
   constructor(
@@ -100,16 +103,19 @@ export class RunManager {
    * promise for the finished run is available through `waitFor`.
    */
   async start(runId: string): Promise<Run> {
+    const run = await this.deps.storage.runs.get(runId);
+    if (!run) throw notFound('Run', runId);
+    // Checked before the engine lookup: a terminal run may still have an engine
+    // attached while an agent answers a message, and that must never be
+    // mistaken for a run that can be resumed.
+    if (run.status === 'completed' || run.status === 'failed' || run.status === 'cancelled') {
+      throw illegalState(`This run already ${run.status}. Retry it to run again.`);
+    }
+
     const existing = this.engines.get(runId);
     if (existing) {
       existing.resume();
       return (await this.deps.storage.runs.get(runId))!;
-    }
-
-    const run = await this.deps.storage.runs.get(runId);
-    if (!run) throw notFound('Run', runId);
-    if (run.status === 'completed' || run.status === 'failed' || run.status === 'cancelled') {
-      throw illegalState(`This run already ${run.status}. Retry it to run again.`);
     }
 
     const ctx = await this.loadContext(run);
@@ -153,6 +159,65 @@ export class RunManager {
 
     this.running.set(runId, promise);
     return (await this.deps.storage.runs.get(runId))!;
+  }
+
+  /**
+   * Delivers a message the human wrote to one or more agents, and has them
+   * answer it.
+   *
+   * Works whether or not the run is still going. When it is, the live engine
+   * handles it and the activation queues behind whatever that agent is already
+   * doing. When it is not — the common case, because people read a result and
+   * then want to ask about it — an engine is attached for exactly as long as
+   * the answer takes. It restores each agent's provider session, so the agent
+   * answers still knowing the run rather than from a blank slate, and the run's
+   * own state is not touched: a finished run stays finished.
+   *
+   * Returns once every addressed agent has answered, so the caller can decide
+   * whether to wait; `AppCore` does not, and lets the answers arrive as events.
+   */
+  replyToHuman(runId: string, agentIds: string[], message: AgentMessage): Promise<void> {
+    // Registered synchronously, before the first `await`: a caller that wants to
+    // wait for the answer asks for it immediately after sending, and a promise
+    // published one tick late is a promise nobody can wait on.
+    const previous = this.replying.get(runId);
+
+    // The closure below reads `promise`, which is fine: it only runs once the
+    // promise it is attached to has settled, long after this assignment.
+    const promise: Promise<void> = (async () => {
+      // One answer at a time per run: two engines on the same run would both
+      // write totals and both think they own the agents' sessions.
+      if (previous) await previous.catch(() => {});
+
+      const live = this.engines.get(runId);
+      if (live) {
+        for (const agentId of agentIds) await live.replyToHuman(agentId, message);
+        return;
+      }
+
+      const run = await this.requireRun(runId);
+      const ctx = await this.loadContext(run);
+      const engine = new RunEngine(this.deps, run, ctx, this.options);
+      // Registered as an engine on purpose: while an agent is composing an
+      // answer the run really is doing something, so approvals it raises can be
+      // answered and deleting it is refused.
+      this.engines.set(runId, engine);
+      try {
+        for (const agentId of agentIds) await engine.replyToHuman(agentId, message);
+      } finally {
+        this.engines.delete(runId);
+      }
+    })().finally(() => {
+      if (this.replying.get(runId) === promise) this.replying.delete(runId);
+    });
+
+    this.replying.set(runId, promise);
+    return promise;
+  }
+
+  /** The answer currently being written for this run, if any. */
+  pendingReply(runId: string): Promise<void> | undefined {
+    return this.replying.get(runId);
   }
 
   /** Resolves when the run reaches a terminal state. */

@@ -88,6 +88,7 @@ pnpm smoke            # one agent reads a file and reports back              (~$
 pnpm smoke:team       # a real orchestrator delegating to a real worker      (~$0.26)
 pnpm smoke:question   # a real agent asking you a question, and using the answer (~$0.27)
 pnpm smoke:local      # proves what your local Claude setup does and does not add (~$0.33)
+pnpm smoke:followup   # asks an agent about its own run afterwards, from memory (~$0.26)
 ```
 
 ---
@@ -418,6 +419,21 @@ Use Redis for session state. Document the decision.
 
 Each agent has a real inbox, with message statuses `pending → read → processing
 → completed` (or `failed`).
+
+### Writing to an agent yourself
+
+You can message any agent in a run — **Send message** on the run page, `m` in
+the TUI — and it answers you.
+
+That works after the run has finished, which is when you usually want it: you
+read the result and have a question about it. The run is reopened for exactly as
+long as the answer takes, the agent resumes **its own provider session** so it
+still remembers the work, and its reply lands in the conversation as a message
+back to you. What the answer costs is added to the run's totals.
+
+The run's own state is not disturbed: a finished run stays finished. Nothing is
+secretly running again because you asked something, and there is no transition
+out of a terminal state for the state machine to invent.
 
 ### Deadlock and runaway protection
 
@@ -808,7 +824,7 @@ pnpm web -- --provider fake
 pnpm test
 ```
 
-238 tests, none of which touch the Claude API:
+244 tests, none of which touch the Claude API:
 
 - **Domain** — agent and team creation, handle uniqueness, cloning semantics,
   effort coercion, capability resolution, destructive-command detection, message
@@ -846,13 +862,14 @@ makes the whole runtime testable deterministically.
   activation, changes take effect on the next run without a restart, and an
   unrecognised value normalises to isolation rather than to inheritance.
 
-For the parts a fake cannot prove, four scripts hit the real API:
+For the parts a fake cannot prove, five scripts hit the real API:
 
 ```bash
 pnpm smoke            # provider health, live model discovery, one agent   (~$0.06)
 pnpm smoke:team       # a real orchestrator delegating to a real worker    (~$0.26)
 pnpm smoke:question   # a real agent asking you a question, and using the answer (~$0.27)
 pnpm smoke:local      # the same agent isolated, then inheriting this machine (~$0.33)
+pnpm smoke:followup   # asking an agent a question after its run finished    (~$0.26)
 ```
 
 ---
@@ -898,6 +915,12 @@ Raise the budget on the team, or per run when starting it — the message names
 which limit ran out. If cost is not the constraint for this team, run it
 unmetered and keep only the time and interaction limits (see *Running
 unmetered*). Totals for the run are on the run page.
+
+**I messaged an agent and nothing happened.**
+It answers now — that was a real bug: the message was stored and no agent was
+ever activated, so no answer could exist. If the agent still cannot answer, the
+run timeline says why; the usual reason is that the run's budget is spent, since
+answering costs a little.
 
 **A run was interrupted by a restart.**
 It is marked `paused`, with its history intact. Resume it or cancel it

@@ -30,6 +30,7 @@ import {
   updateAgentSchema,
   updateSettingsSchema,
   updateTeamSchema,
+  toDomainError,
   uniqueSlug,
   type Agent,
   type AgentEffort,
@@ -1275,7 +1276,40 @@ export class AppCore {
 
     this.emit({ type: 'message', message });
     this.emit({ type: 'run.event', runId: parsed.runId, event });
+
+    // A message from the human is a question, and a question that nothing
+    // answers is just a row in a table. Hand it to the agents so they reply —
+    // reopening the run if it has already finished, which is when people
+    // usually want to ask something.
+    const recipients = to.filter((id) => id !== 'user');
+    if (from === 'user' && recipients.length > 0) {
+      void this.runs
+        .replyToHuman(parsed.runId, recipients, message)
+        .catch((err) => {
+          const e = toDomainError(err);
+          this.emit({
+            type: 'notice',
+            level: 'error',
+            message: `Could not get an answer: ${e.message}`,
+          });
+        });
+    }
+
     return message;
+  }
+
+  /**
+   * Resolves once the agents have finished answering your message.
+   *
+   * The UIs do not wait — the answer arrives as an event like everything else —
+   * but a caller that needs the reply in hand (a test, a script) can.
+   */
+  async waitForReply(runId: string): Promise<void> {
+    // Settles rather than propagates: a failure to answer is already recorded
+    // on the run as an error event, and the message is marked failed, so a
+    // caller waiting for the exchange to finish should read those rather than
+    // catch an exception here.
+    await this.runs.pendingReply(runId)?.catch(() => {});
   }
 
   /* ================================================================ *

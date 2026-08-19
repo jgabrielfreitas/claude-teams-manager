@@ -264,6 +264,35 @@ export function buildAnswerPrompt(opts: {
   ].join('\n\n');
 }
 
+/**
+ * The human writing to an agent directly, usually after the run has finished.
+ *
+ * The agent keeps its provider session, so it still remembers the work; what it
+ * needs to be told is that this is a person asking, not a teammate, and that
+ * the run around it is over — otherwise it tries to carry on orchestrating or
+ * hands the answer to somebody else instead of replying.
+ */
+export function buildHumanMessagePrompt(opts: {
+  message: string;
+  objective: string;
+  runStatus: string;
+  finished: boolean;
+}): string {
+  return [
+    `## Run objective\n${opts.objective}`,
+    opts.finished
+      ? `## This run already ${opts.runStatus}\nThe work is done; nothing is waiting on you. You are being reopened only to answer.`
+      : '## This run is still going',
+    `## The human is writing to you directly\n${opts.message}`,
+    [
+      'Reply to them, in their language, using what you already know from this run.',
+      'You still have your tools if you genuinely need to check something before answering,',
+      'but do not start new work, do not create tasks, and do not delegate: answer the question.',
+      'Your reply is what they will read.',
+    ].join(' '),
+  ].join('\n\n');
+}
+
 /* ------------------------------------------------------------------ *
  * Rendering helpers
  * ------------------------------------------------------------------ */
