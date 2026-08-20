@@ -115,7 +115,7 @@ Keys in the Teams and Agents sections
   d delete
 
 Keys in the Runs section
-  d delete run   f full screen   y copy transcript   e export transcript
+  b budget   d delete run   f full screen   y copy transcript   e export transcript
 
 Keys in the full-screen run view
   t switch tab   ↑↓ / PgUp PgDn scroll   g top   G end   f follow again

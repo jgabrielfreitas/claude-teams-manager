@@ -2,6 +2,7 @@ import {
   DomainError,
   assertRunTransition,
   createRun,
+  describeBudget,
   illegalState,
   notFound,
   type AgentConfigSnapshot,
@@ -159,6 +160,32 @@ export class RunManager {
 
     this.running.set(runId, promise);
     return (await this.deps.storage.runs.get(runId))!;
+  }
+
+  /**
+   * Changes the limits of an existing run.
+   *
+   * A run carries the budget it started with — a snapshot, so that raising a
+   * team's budget never quietly changes what an old run was allowed to spend.
+   * The consequence is that raising the *team* budget does nothing for a run
+   * already over its own, which is why this exists: it is the run's own number
+   * that has to move, and it moves in storage and in the live engine at once.
+   */
+  async setBudget(runId: string, budget: Budget | undefined): Promise<Run> {
+    const run = await this.requireRun(runId);
+    const next: Run = { ...run, budget, updatedAt: new Date() };
+    await this.deps.storage.runs.update(next);
+    this.engines.get(runId)?.setBudget(budget);
+
+    await this.recorder.record({
+      runId,
+      type: 'log',
+      level: 'info',
+      summary: `Budget changed by the human: ${describeBudget(budget)}`,
+      data: { budget: budget ?? null },
+    });
+    this.deps.onRunStatus?.(runId, next.status);
+    return next;
   }
 
   /**

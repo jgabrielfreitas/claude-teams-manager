@@ -141,6 +141,9 @@ export class ApiClient {
   cancelRun = (id: string) => this.post<RunDto>(routes.runCancel(id));
   retryRun = (id: string) => this.post<RunDto>(routes.runRetry(id));
   deleteRun = (id: string) => this.del<{ ok: true }>(routes.run(id));
+  /** Raises (or lowers) the limits of an existing run. */
+  updateRunBudget = (id: string, budget: Record<string, unknown> | null) =>
+    this.patch<RunDto>(routes.runBudget(id), budget as Record<string, unknown>);
   getRunEvents = (id: string, afterSeq = 0) =>
     this.request<RunEventDto[]>(routes.runEvents(id, afterSeq));
   /** The full run transcript, for copying to the clipboard. */

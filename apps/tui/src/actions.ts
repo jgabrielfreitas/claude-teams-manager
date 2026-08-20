@@ -4,6 +4,7 @@ import {
   DEFAULT_BUDGET,
   availableRunActions,
   budgetProblem,
+  budgetStop,
   describeBudget,
   isRunTerminal,
   isUnmetered,
@@ -681,6 +682,23 @@ export async function runAction(ui: Ui, action: 'pause' | 'resume' | 'cancel' | 
 }
 
 /**
+ * Changes the limits of the selected run.
+ *
+ * The run's own limits, not the team's: a run keeps a snapshot of what it was
+ * allowed to spend, so raising the team budget does nothing for a run that has
+ * already used its own. That distinction is the whole reason this is here.
+ */
+export async function editRunBudget(ui: Ui): Promise<void> {
+  const run = await currentRun(ui);
+  if (!run) return;
+
+  const stopped = budgetStop(run.budget, { totals: run.totals }, 'spend');
+  if (stopped) ui.notify(`${stopped} Raise it here and the agents can answer again.`, 'warning');
+
+  await editBudget(ui, run.budget, (budget) => ui.core.updateRunBudget(run.id, budget));
+}
+
+/**
  * Removes a run and its whole history.
  *
  * Unlike cancel, this cannot be looked at afterwards, so the prompt counts what
@@ -910,6 +928,8 @@ export async function executeCommand(id: string, ui: Ui): Promise<void> {
       ui.setRunFullScreen(true);
       return;
     }
+    case 'run.budget':
+      return editRunBudget(ui);
     case 'run.delete':
       return deleteRun(ui);
     case 'run.retry':

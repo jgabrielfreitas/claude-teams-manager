@@ -1,10 +1,11 @@
 import {
   DomainError,
   addUsage,
+  budgetStop,
   emptyUsage,
-  formatUsd,
   totalTokens,
   type Budget,
+  type BudgetScope,
   type RunTotals,
   type TokenUsage,
 } from '@claude-team/domain';
@@ -25,10 +26,26 @@ export class BudgetTracker {
   private warnedAt = new Set<string>();
 
   constructor(
-    private readonly budget: Budget | undefined,
+    private budget: Budget | undefined,
     private readonly startedAt: number,
     private readonly onWarning: (message: string) => void = () => {},
   ) {}
+
+  /**
+   * Replaces the limits mid-flight, which is what raising a budget means.
+   *
+   * The warning marks are cleared with it: 80% of the old cost cap is not 80%
+   * of the new one, and someone who just raised their budget should be told
+   * again when the new one starts running out.
+   */
+  replaceBudget(budget: Budget | undefined): void {
+    this.budget = budget;
+    this.warnedAt.clear();
+  }
+
+  get limits(): Budget | undefined {
+    return this.budget;
+  }
 
   get totals(): RunTotals {
     return {
@@ -72,24 +89,12 @@ export class BudgetTracker {
    * Returns the reason the run must stop, or undefined when it may continue.
    * Kept as a plain value (not a throw) so callers can decide between
    * "finish gracefully" and "abort".
+   *
+   * The rule itself lives in the domain (`budgetStop`), so the UIs can tell you
+   * a run has no budget left without asking the engine that is not running.
    */
-  exceeded(now = Date.now()): string | undefined {
-    const b = this.budget;
-    if (!b) return undefined;
-
-    if (b.maxTokens !== undefined && totalTokens(this.usage) >= b.maxTokens) {
-      return `Token budget exhausted (${totalTokens(this.usage)} / ${b.maxTokens}).`;
-    }
-    if (b.maxCostUsd !== undefined && this.costUsd >= b.maxCostUsd) {
-      return `Cost budget exhausted (${formatUsd(this.costUsd)} / ${formatUsd(b.maxCostUsd)}).`;
-    }
-    if (b.maxDurationMinutes !== undefined && this.elapsedMs(now) >= b.maxDurationMinutes * 60_000) {
-      return `Time budget exhausted (${Math.round(this.elapsedMs(now) / 60_000)} / ${b.maxDurationMinutes} min).`;
-    }
-    if (b.maxAgentActivations !== undefined && this.activations >= b.maxAgentActivations) {
-      return `Activation budget exhausted (${this.activations} / ${b.maxAgentActivations}).`;
-    }
-    return undefined;
+  exceeded(now = Date.now(), scope: BudgetScope = 'all'): string | undefined {
+    return budgetStop(this.budget, { totals: this.totals, elapsedMs: this.elapsedMs(now) }, scope);
   }
 
   assertWithinBudget(now = Date.now()): void {

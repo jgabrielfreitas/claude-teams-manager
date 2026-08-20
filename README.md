@@ -447,6 +447,12 @@ The run's own state is not disturbed: a finished run stays finished. Nothing is
 secretly running again because you asked something, and there is no transition
 out of a terminal state for the state machine to invent.
 
+Answering costs a little, so it is subject to the run's **spend** caps — tokens
+and money. It is deliberately *not* subject to the run's time limit or its
+activation limit: a question asked two days later is not the run overrunning its
+clock, and one activation you asked for by hand is not an agent looping. If the
+money has run out, raise that run's budget (below) and ask again.
+
 ### Deadlock and runaway protection
 
 Guards are enforced by the runtime, not requested in a prompt:
@@ -623,6 +629,19 @@ Budgets are checked before an activation is dispatched and after it returns, so
 an over-spend stops the run immediately. You get warnings at 50%, 80% and 95%,
 and the warning names the limit it is about — your time limit, your interaction
 limit, or your money.
+
+### A run keeps its own budget
+
+The budget on a run is a **snapshot** taken when it started. Raising the team's
+budget — or the application default — deliberately does not change what an
+older run is allowed to spend, so a number you change today cannot rewrite what
+happened yesterday.
+
+The consequence is the thing to know: for a run that has already spent its
+budget, the team's new number changes nothing. Raise **that run's** budget —
+`Change` next to Budget on the run page, `b` in the TUI, or *Change Run Budget*
+in the command palette. It applies immediately, including to a run that is
+executing right now, and it is recorded on the timeline.
 
 ### Running unmetered
 
@@ -836,7 +855,7 @@ pnpm web -- --provider fake
 pnpm test
 ```
 
-244 tests, none of which touch the Claude API:
+250 tests, none of which touch the Claude API:
 
 - **Domain** — agent and team creation, handle uniqueness, cloning semantics,
   effort coercion, capability resolution, destructive-command detection, message
@@ -923,16 +942,17 @@ in the TUI, the modal in the web UI, or the Pending Approvals card on the
 dashboard.
 
 **The run stopped with "budget exhausted".**
-Raise the budget on the team, or per run when starting it — the message names
-which limit ran out. If cost is not the constraint for this team, run it
-unmetered and keep only the time and interaction limits (see *Running
-unmetered*). Totals for the run are on the run page.
+The message names which limit ran out. To give *this* run more room, use
+`Change` next to its Budget — raising the team's budget does not affect a run
+that already started (see *A run keeps its own budget*). To carry the work on
+from there, retry the run. If cost is not the constraint for this team at all,
+run it unmetered and keep only the time and interaction limits.
 
 **I messaged an agent and nothing happened.**
 It answers now — that was a real bug: the message was stored and no agent was
-ever activated, so no answer could exist. If the agent still cannot answer, the
-run timeline says why; the usual reason is that the run's budget is spent, since
-answering costs a little.
+ever activated, so no answer could exist. If the run has spent its money, the
+send is refused out loud instead of going quiet, and the message tells you to
+raise *that run's* budget rather than the team's.
 
 **A run was interrupted by a restart.**
 It is marked `paused`, with its history intact. Resume it or cancel it

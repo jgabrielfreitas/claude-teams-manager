@@ -53,6 +53,8 @@ export const routes = {
   runResume: (id: string) => `${API_PREFIX}/runs/${id}/resume`,
   runCancel: (id: string) => `${API_PREFIX}/runs/${id}/cancel`,
   runRetry: (id: string) => `${API_PREFIX}/runs/${id}/retry`,
+  /** The limits of this one run, which are a snapshot of the team's. */
+  runBudget: (id: string) => `${API_PREFIX}/runs/${id}/budget`,
   runEvents: (id: string, afterSeq = 0) => `${API_PREFIX}/runs/${id}/events?afterSeq=${afterSeq}`,
   /**
    * The whole run as one document. `download=1` makes the browser save it;

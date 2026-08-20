@@ -1,5 +1,5 @@
-import { formatUsd } from './models.js';
-import type { Budget } from './entities.js';
+import { formatTokens, formatUsd, totalTokens } from './models.js';
+import type { Budget, RunTotals } from './entities.js';
 
 /**
  * Budgets, and what it means to run without one.
@@ -105,4 +105,69 @@ export function describeBudget(budget: Budget | undefined): string {
     parts.push(`${budget.maxAgentActivations} interactions`);
   }
   return parts.join(' · ');
+}
+
+/* ------------------------------------------------------------------ *
+ * What stops a run
+ * ------------------------------------------------------------------ */
+
+export interface BudgetConsumption {
+  totals: RunTotals;
+  /** Wall-clock the run has been going, when that is meaningful. */
+  elapsedMs?: number;
+}
+
+/**
+ * Which limits to apply.
+ *
+ * `all` is the run doing its own work. `spend` is for work a human explicitly
+ * asked for after the fact — answering a message about a finished run — where
+ * the money guards still hold but the runaway guards do not: a question asked
+ * two days later is not the run overrunning its clock, and one activation you
+ * requested by hand is not an agent looping. Applying the wall-clock limit
+ * there would refuse every follow-up for ever, which is not a budget being
+ * enforced, it is a conversation being lost.
+ */
+export type BudgetScope = 'all' | 'spend';
+
+/**
+ * The reason a run must stop, or undefined when it may continue.
+ *
+ * A plain value rather than a throw, so callers can choose between finishing
+ * gracefully and refusing outright — and pure, so the runtime, the core and
+ * both UIs answer the question the same way.
+ */
+export function budgetStop(
+  budget: Budget | undefined,
+  consumption: BudgetConsumption,
+  scope: BudgetScope = 'all',
+): string | undefined {
+  if (!budget) return undefined;
+  const { totals } = consumption;
+  const tokens = totalTokens(totals.usage);
+
+  if (budget.maxTokens !== undefined && tokens >= budget.maxTokens) {
+    return `Token budget exhausted (${formatTokens(tokens)} / ${formatTokens(budget.maxTokens)}).`;
+  }
+  if (budget.maxCostUsd !== undefined && totals.costUsd >= budget.maxCostUsd) {
+    return `Cost budget exhausted (${formatUsd(totals.costUsd)} / ${formatUsd(budget.maxCostUsd)}).`;
+  }
+  if (scope === 'spend') return undefined;
+
+  const elapsedMs = consumption.elapsedMs ?? 0;
+  if (budget.maxDurationMinutes !== undefined && elapsedMs >= budget.maxDurationMinutes * 60_000) {
+    return `Time budget exhausted (${Math.round(elapsedMs / 60_000)} / ${budget.maxDurationMinutes} min).`;
+  }
+  if (
+    budget.maxAgentActivations !== undefined &&
+    totals.agentActivations >= budget.maxAgentActivations
+  ) {
+    return `Activation budget exhausted (${totals.agentActivations} / ${budget.maxAgentActivations}).`;
+  }
+  return undefined;
+}
+
+/** True when no more money may be spent on this run as it stands. */
+export function spendExhausted(budget: Budget | undefined, totals: RunTotals): boolean {
+  return budgetStop(budget, { totals }, 'spend') !== undefined;
 }

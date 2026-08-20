@@ -30,6 +30,10 @@ import {
   updateAgentSchema,
   updateSettingsSchema,
   updateTeamSchema,
+  DomainError,
+  budgetSchema,
+  budgetStop,
+  spendExhausted,
   toDomainError,
   uniqueSlug,
   type Agent,
@@ -1128,6 +1132,21 @@ export class AppCore {
   }
 
   /**
+   * Changes the limits of one run.
+   *
+   * A run's budget is a snapshot from when it started, so raising the team's
+   * budget deliberately does not touch it. This is how you give an existing run
+   * more room — including a finished one, so its agents can answer questions
+   * again after it hit a cap.
+   */
+  async updateRunBudget(runId: string, input: unknown): Promise<Run> {
+    const budget = input === null ? undefined : budgetSchema.parse(input);
+    const run = await this.runs.setBudget(runId, budget);
+    this.emit({ type: 'run.status', runId, status: run.status, run });
+    return run;
+  }
+
+  /**
    * Removes a run and everything under it: tasks, messages, timeline,
    * approvals and questions.
    *
@@ -1244,6 +1263,22 @@ export class AppCore {
 
     const from = resolve(parsed.from);
     const to = parsed.to.map(resolve);
+
+    // Refused before the message is stored, not after: a message that no agent
+    // can answer used to be saved, reported as delivered, and then answered by
+    // nobody — which is indistinguishable from the product being broken. The
+    // message names the fix, because raising the *team* budget does nothing for
+    // a run that already has its own.
+    if (from === 'user' && to.some((id) => id !== 'user')) {
+      const spent = spendExhausted(run.budget, run.totals);
+      if (spent) {
+        throw new DomainError(
+          'budget_exceeded',
+          `${budgetStop(run.budget, { totals: run.totals }, 'spend')} An agent cannot answer until this run's own budget is raised — team and application budgets do not apply to a run that already started.`,
+          { runId: run.id, budget: run.budget, totals: run.totals },
+        );
+      }
+    }
 
     const seq = await this.deps.storage.messages.nextSeq(parsed.runId);
     const message = createMessageEntity({

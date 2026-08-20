@@ -15,6 +15,8 @@ import {
   type AgentMessage,
   type AgentStatus,
   type ApprovalDecision,
+  type Budget,
+  type BudgetScope,
   type Run,
   type RunStatus,
   type Task,
@@ -539,9 +541,11 @@ export class RunEngine implements ToolHost {
     isOrchestrator: boolean;
     purpose: 'orchestrate' | 'task' | 'review' | 'answer';
     chain?: { hop: number; path: string[]; depth: number };
+    /** Which limits apply; see `BudgetScope`. Defaults to all of them. */
+    budgetScope?: BudgetScope;
   }): Promise<ActivationResult> {
     const { agent } = opts;
-    const budgetStop = this.budget.exceeded();
+    const budgetStop = this.budget.exceeded(Date.now(), opts.budgetScope);
     if (budgetStop) {
       return {
         ok: false,
@@ -767,6 +771,18 @@ export class RunEngine implements ToolHost {
   }
 
   /**
+   * Raises (or lowers) the limits of a run that is executing right now.
+   *
+   * The tracker holds the budget the run started with, so persisting a new one
+   * is not enough: without this, a run paused at its cost cap would keep
+   * refusing work against a number nobody uses any more.
+   */
+  setBudget(budget: Budget | undefined): void {
+    this.budget.replaceBudget(budget);
+    this.run = { ...this.run, budget, updatedAt: new Date() };
+  }
+
+  /**
    * Answers a message the human sent to one agent.
    *
    * This is the path for writing to an agent after the run is over, which is
@@ -807,6 +823,11 @@ export class RunEngine implements ToolHost {
       taskId: message.taskId,
       isOrchestrator: agent.id === this.ctx.orchestrator.id,
       purpose: 'answer',
+      // A question about a finished run is not the run overrunning: the money
+      // caps still hold, the wall clock and the activation circuit breaker do
+      // not, or every follow-up after the run's own deadline would be refused
+      // for ever.
+      budgetScope: finished ? 'spend' : 'all',
     });
 
     await this.deps.storage.messages.update({

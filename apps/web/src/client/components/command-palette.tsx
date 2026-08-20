@@ -163,6 +163,8 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
           return go(`/runs/${runId}?tab=timeline`);
         case 'run.replay':
           return go(`/runs/${runId}?replay=1`);
+        case 'run.budget':
+          return go(`/runs/${runId}?action=budget`);
         case 'run.delete':
           // Never deletes from the palette: it opens the run with its
           // confirmation, so the same dialog guards every route in.

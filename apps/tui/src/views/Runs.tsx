@@ -22,6 +22,7 @@ import { useUi } from '../store.js';
 import {
   copyRunTranscript,
   deleteRun,
+  editRunBudget,
   exportRunTranscript,
   messageAgent,
   runAction,
@@ -88,7 +89,8 @@ export function RunsView({ height, columns, narrow }: ViewProps): React.JSX.Elem
       else if (input === 'f') {
         if (run) ui.setRunFullScreen(true);
         else ui.notify('Select a run first.', 'warning');
-      } else if (input === 'd') ui.dispatch(() => deleteRun(ui));
+      } else if (input === 'b') ui.dispatch(() => editRunBudget(ui));
+      else if (input === 'd') ui.dispatch(() => deleteRun(ui));
       else if (input === 'y') ui.dispatch(() => copyRunTranscript(ui));
       else if (input === 'e') ui.dispatch(() => exportRunTranscript(ui));
       else if (input === 'l' || key.return) ui.setFocus('detail');
@@ -341,6 +343,7 @@ function RunDetail({
             { key: 'e', label: 'export transcript' },
             { key: 'm', label: 'message agent' },
             { key: 'r', label: 'new run' },
+            { key: 'b', label: 'budget' },
             { key: 'd', label: 'delete run' },
             ...(pendingQuestions.length > 0 ? [{ key: 'Q', label: 'answer question' }] : []),
           ]}

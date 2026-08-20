@@ -1,10 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
+  DEFAULT_BUDGET,
   availableRunActions,
+  budgetProblem,
+  budgetStop,
   describeBudget,
+  formatUsd,
   isRunTerminal,
   isUnmetered,
+  type Budget,
   type RunAction,
 } from '@claude-team/domain';
 import type { RunDetailDto } from '@claude-team/protocol';
@@ -12,6 +17,7 @@ import { formatDuration, formatRelative, runDurationMs } from '@claude-team/ui-s
 import { client } from '../api';
 import { AgentAvatar } from '../components/agent-views';
 import { isTypingTarget } from '../components/layout';
+import { BudgetFields } from '../components/pickers';
 import { RunExportControls, useExportPrefs } from '../components/run-export';
 import {
   FULL_SCREEN_TABS,
@@ -246,7 +252,28 @@ export function RunDetailPage() {
                         </div>
                       </div>
                     )}
-                    {data.run.error && <div className="error-box">{data.run.error}</div>}
+                    {data.run.error && (
+                      <div className="error-box">
+                        <div className="col" style={{ gap: 8 }}>
+                          <span>{data.run.error}</span>
+                          {/^(cost|token|time|activation) budget/i.test(data.run.error) && (
+                            <div className="row" style={{ gap: 8 }}>
+                              <button
+                                type="button"
+                                className="btn btn-sm"
+                                onClick={() => setParam('action', 'budget')}
+                              >
+                                Raise this run's budget
+                              </button>
+                              <span className="tiny muted">
+                                Lets the agents answer you again. To carry the work on, retry the
+                                run.
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </Card>
 
@@ -377,8 +404,20 @@ export function RunDetailPage() {
                     </div>
                     <div className="spread">
                       <span className="muted">Budget</span>
-                      <span className={isUnmetered(data.run.budget) ? 'tone-text tone-warning' : undefined}>
-                        {describeBudget(data.run.budget)}
+                      <span className="row" style={{ gap: 6 }}>
+                        <span
+                          className={isUnmetered(data.run.budget) ? 'tone-text tone-warning' : undefined}
+                        >
+                          {describeBudget(data.run.budget)}
+                        </span>
+                        <button
+                          type="button"
+                          className="btn btn-ghost btn-sm"
+                          title="This run's own limits — raising the team's does not change them"
+                          onClick={() => setParam('action', 'budget')}
+                        >
+                          Change
+                        </button>
                       </span>
                     </div>
                     {data.run.retryOfRunId && (
@@ -398,6 +437,14 @@ export function RunDetailPage() {
                 agents={data.agents}
                 finished={isRunTerminal(data.run.status)}
                 onClose={() => setMessageOpen(false)}
+              />
+            )}
+
+            {params.get('action') === 'budget' && (
+              <RunBudgetDialog
+                run={data.run}
+                onClose={() => setParam('action', undefined)}
+                onSaved={() => detail.reload()}
               />
             )}
 
@@ -680,6 +727,68 @@ function DeleteRunDialog({ data, onClose }: { data: RunDetailDto; onClose: () =>
         value={confirm}
         onChange={(event) => setConfirm(event.target.value)}
       />
+    </Modal>
+  );
+}
+
+/**
+ * Raising the limits of one run.
+ *
+ * Separate from the team's budget on purpose, and the copy has to say so: a run
+ * carries a snapshot of the limits it started with, so someone who raises the
+ * team budget and comes back to an exhausted run finds nothing has changed —
+ * which is exactly the confusion this dialog exists to end.
+ */
+function RunBudgetDialog({
+  run,
+  onClose,
+  onSaved,
+}: {
+  run: RunDetailDto['run'];
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const act = useAction();
+  const [budget, setBudget] = useState<Budget>(run.budget ?? { ...DEFAULT_BUDGET });
+  const problem = budgetProblem(budget);
+  const stopped = budgetStop(run.budget, { totals: run.totals }, 'spend');
+
+  return (
+    <Modal
+      title="This run's budget"
+      onClose={onClose}
+      footer={
+        <>
+          <button type="button" className="btn" onClick={onClose}>
+            Cancel
+          </button>
+          <button
+            type="button"
+            className="btn btn-primary"
+            disabled={Boolean(problem)}
+            onClick={() =>
+              void act(async () => {
+                await client.updateRunBudget(run.id, budget as unknown as Record<string, unknown>);
+                onSaved();
+                onClose();
+              }, 'Budget updated for this run')
+            }
+          >
+            Save
+          </button>
+        </>
+      }
+    >
+      {stopped && (
+        <div className="error-box" style={{ marginBottom: 12 }}>
+          {stopped} Raise it here to let the agents answer you again. Changing the team's budget
+          does not affect a run that already started.
+        </div>
+      )}
+      <p className="small muted">
+        Spent so far: {formatUsd(run.totals.costUsd)} · {run.totals.agentActivations} activation(s).
+      </p>
+      <BudgetFields budget={budget} onChange={setBudget} idPrefix="run-budget" />
     </Modal>
   );
 }
