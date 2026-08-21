@@ -156,9 +156,11 @@ function collectMcpServers(raw: unknown, scope: 'user' | 'project', out: McpServ
  * opted into reusing them. Project scope wins over user scope, which is how
  * the CLI resolves the same collision.
  *
- * Note that servers authenticated interactively (an OAuth login done inside
- * Claude Code) may not connect from a background process — a stdio server
- * started from a command always will.
+ * Only servers that exist in a file are here. Connectors added on claude.ai are
+ * held by the account and negotiated by the interactive client, so they appear
+ * in no local config and reach no agent spawned through the SDK — measured, not
+ * assumed: an activation with every capability allowed and the local setup
+ * fully on lists no `mcp__claude_ai_*` tool at all.
  */
 export async function loadLocalMcpServers(cwd = process.cwd()): Promise<Record<string, unknown>> {
   const home = homedir();

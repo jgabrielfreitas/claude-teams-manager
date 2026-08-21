@@ -354,7 +354,7 @@ const ROWS: Row[] = [
     id: 'localMcpServers',
     label: '· MCP servers',
     value: (s) => (s.localSetup.mcpServers ? 'reused from this machine' : 'none'),
-    help: 'Reuse the MCP servers already configured here. Servers you logged into interactively may not connect from a background run; a stdio server started from a command always will.',
+    help: 'Reuse the MCP servers configured on this machine, in `~/.claude.json` or a workspace `.mcp.json`. Connectors you added on claude.ai are held by your account rather than in a file here, and do not reach an agent: a stdio server started from a command does.',
     edit: async (ui, s) => {
       const value = await ui.dialogs.select({
         title: 'MCP servers configured on this machine',

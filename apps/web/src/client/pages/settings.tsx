@@ -451,8 +451,9 @@ function SettingsForm({ settings }: { settings: SettingsDto }) {
                 <strong>MCP servers configured on this machine</strong>
                 <span className="hint">
                   {' '}
-                  — {environment.data?.claude.mcpServers.length ?? 0} found. Servers you logged into
-                  interactively may not connect from a background run.
+                  — {environment.data?.claude.mcpServers.length ?? 0} found here. Only servers
+                  configured in files count: connectors you added on claude.ai are held by your
+                  account, not on this machine, and do not reach an agent.
                 </span>
               </span>
             </label>

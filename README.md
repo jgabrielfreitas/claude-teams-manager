@@ -728,8 +728,21 @@ Local Claude Code** (TUI), where each part is separate:
 | Workspace settings & CLAUDE.md | The instructions of the repo each agent works in |
 | Workspace local overrides | `.claude/settings.local.json`, the untracked one |
 | Skills | Every installed skill, or a list you choose — see the caveat below |
-| MCP servers | The servers already configured on this machine |
+| MCP servers | The servers configured on this machine, in a file |
 | Claude executable | Your own `claude` binary instead of the SDK's bundled one |
+
+**claude.ai connectors are not local configuration.** The connectors you add on
+claude.ai — ClickUp, Slack, Figma and the rest — belong to your account and are
+negotiated by the interactive client. They live in no file here, so nothing
+copies them, and an agent spawned through the SDK gets none of them: with every
+capability allowed and the local setup fully on, an activation lists no
+`mcp__claude_ai_*` tool. What does come through is any server configured in
+`~/.claude.json` or a workspace `.mcp.json` — a stdio server started from a
+command, or a plugin's server.
+
+To get something that lives on claude.ai in front of an agent, put it in the
+workspace as a file, or paste it into the objective. Files are what agents read
+best anyway.
 
 **Skills need the settings they live under.** Claude Code discovers a skill
 through the settings file of its scope: `~/.claude/skills` comes with **user**
