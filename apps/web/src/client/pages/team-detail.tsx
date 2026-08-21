@@ -520,8 +520,13 @@ export function StartRunDialog({ team, onClose }: { team: TeamWithAgentsDto; onC
   const act = useAction();
   const navigate = useNavigate();
   const [objective, setObjective] = useState('');
-  const [workspace, setWorkspace] = useState(team.workspace ?? '');
+  // Left empty on purpose: empty means "let the server decide", and the server
+  // decides the directory it was started in. Pre-filling the team's directory
+  // would send it as an explicit choice and quietly win over that.
+  const [workspace, setWorkspace] = useState('');
   const [busy, setBusy] = useState(false);
+  const environment = useResource(() => client.detectEnvironment(), []);
+  const defaultWorkspace = environment.data?.workspace.path ?? team.workspace;
 
   const start = async () => {
     setBusy(true);
@@ -569,7 +574,15 @@ export function StartRunDialog({ team, onClose }: { team: TeamWithAgentsDto; onC
           placeholder="Add refresh-token rotation to the auth service and cover it with tests."
         />
       </Field>
-      <WorkspaceField value={workspace} onChange={setWorkspace} hint="Defaults to the team workspace." />
+      <WorkspaceField
+        value={workspace}
+        onChange={setWorkspace}
+        hint={
+          defaultWorkspace
+            ? `Empty runs in ${defaultWorkspace} — where claude-team was started.`
+            : 'Empty runs where claude-team was started.'
+        }
+      />
       <div className="notice-box small">
         Running with:{' '}
         {team.agents.map((agent) => `${agent.handle} (${agent.model}/${agent.effort})`).join(', ')}

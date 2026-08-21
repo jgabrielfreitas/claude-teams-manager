@@ -17,6 +17,12 @@ export interface BootstrapOptions {
   /** Provider id; defaults to the value stored in settings. */
   provider?: string;
   providerOptions?: Record<string, unknown>;
+  /**
+   * Directory this process was invoked from, used as the default workspace for
+   * runs it starts. The entry points pass `process.cwd()` unless the user gave
+   * `--workspace`.
+   */
+  workspace?: string;
   /** Inject a storage/provider directly — used by tests. */
   storage?: Storage;
   providerInstance?: AgentProvider;
@@ -51,7 +57,11 @@ export async function createAppCore(options: BootstrapOptions = {}): Promise<App
       ...options.providerOptions,
     });
 
-  const core = new AppCore({ storage, provider });
+  const core = new AppCore({
+    storage,
+    provider,
+    ...(options.workspace ? { workspace: options.workspace } : {}),
+  });
   await core.init();
   return core;
 }

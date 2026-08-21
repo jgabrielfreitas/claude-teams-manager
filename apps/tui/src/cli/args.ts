@@ -14,6 +14,11 @@ export interface ParsedArgs {
   format?: string;
   /** Destination file for `run export`; stdout when omitted. */
   out?: string;
+  /**
+   * Directory runs work in. Defaults to where the command was called, which is
+   * the whole point: `claude-team` acts on the folder you are standing in.
+   */
+  workspace?: string;
   /** Include debug events in an exported transcript. */
   debug: boolean;
   help: boolean;
@@ -23,13 +28,14 @@ export interface ParsedArgs {
 
 const VALUE_FLAGS: Record<
   string,
-  keyof Pick<ParsedArgs, 'db' | 'provider' | 'team' | 'format' | 'out'>
+  keyof Pick<ParsedArgs, 'db' | 'provider' | 'team' | 'format' | 'out' | 'workspace'>
 > = {
   '--db': 'db',
   '--provider': 'provider',
   '--team': 'team',
   '--format': 'format',
   '--out': 'out',
+  '--workspace': 'workspace',
 };
 
 export function parseArgs(argv: string[]): ParsedArgs {
@@ -99,6 +105,7 @@ Options
   --format <fmt>      transcript format for "run export": markdown (default), text, json
   --debug             include debug events (thinking, tool traffic) in a transcript
   --out <path>        write "run export" to a file instead of stdout
+  --workspace <path>  directory runs work in (default: the current directory)
   --db <path>         SQLite file to use (default: $CLAUDE_TEAM_HOME/claude-team.db)
   --provider <id>     override the configured provider (claude, fake)
   -h, --help          show this help

@@ -61,6 +61,7 @@ import {
   type ProviderHealth,
 } from '@claude-team/provider';
 import { RunManager, DEFAULT_ENGINE_OPTIONS, type RunEngineOptions } from '@claude-team/runtime';
+import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { EventBus, type AppEvent, type AppEventListener } from './event-bus.js';
 import {
@@ -94,6 +95,12 @@ export interface AppCoreDeps {
   provider: AgentProvider;
   /** Overrides for the engine; anything omitted comes from settings. */
   engineOptions?: Partial<RunEngineOptions>;
+  /**
+   * Where this process was invoked from. Runs it starts work here unless told
+   * otherwise, which is what makes `claude-team` act on the folder you are
+   * standing in, the way every other command-line tool does.
+   */
+  workspace?: string;
 }
 
 export interface RunDetail {
@@ -196,6 +203,7 @@ export class AppCore {
     await this.deps.storage.init();
     const settings = await this.getSettings();
     this.applySettingsToEngine(settings);
+    this.warnAboutRiskyWorkspace();
 
     this.lock = acquireInstanceLock(this.deps.storage.describe().location);
 
@@ -260,6 +268,54 @@ export class AppCore {
    * Settings
    * ================================================================ */
 
+  /**
+   * The directory a run started now would work in, and why.
+   *
+   * Precedence: what the caller asked for, then where this process was invoked
+   * from, then the team's own directory. The invocation directory beats the
+   * team's on purpose — you are standing in a project and asking for work on
+   * it. A team's directory is what remains for the cases with no terminal
+   * behind them (a daemon, a scheduled run), and an agent pinned to its own
+   * directory still overrides all of this.
+   */
+  async resolveWorkspace(input: {
+    requested?: string;
+    teamId?: string;
+  }): Promise<{ path?: string; source: 'requested' | 'invocation' | 'team' | 'none' }> {
+    if (input.requested?.trim()) return { path: expandPath(input.requested), source: 'requested' };
+    if (this.deps.workspace?.trim()) {
+      return { path: expandPath(this.deps.workspace), source: 'invocation' };
+    }
+    if (input.teamId) {
+      const team = await this.deps.storage.teams.get(input.teamId);
+      if (team?.workspace) return { path: team.workspace, source: 'team' };
+    }
+    return { source: 'none' };
+  }
+
+  /**
+   * Agents write files and run commands in the workspace, so being launched
+   * from `$HOME` or `/` is worth one line on screen. A warning, not a refusal:
+   * it is a legitimate thing to do deliberately, and blocking it would be this
+   * product deciding what someone's directories are for.
+   */
+  private warnAboutRiskyWorkspace(): void {
+    const workspace = this.deps.workspace?.trim();
+    if (!workspace) return;
+    const risky = [homedir(), '/'].map((path) => path.replace(/\/$/, ''));
+    if (!risky.includes(workspace.replace(/\/$/, ''))) return;
+    this.emit({
+      type: 'notice',
+      level: 'warn',
+      message: `Runs will work in ${workspace}. Agents write files there — start from a project directory, or set the workspace per team.`,
+    });
+  }
+
+  /** Where this process was invoked from, for a UI that wants to show it. */
+  invocationWorkspace(): string | undefined {
+    return this.deps.workspace;
+  }
+
   async getSettings(): Promise<AppSettings> {
     if (!this.settingsCache) this.settingsCache = await this.deps.storage.settings.get();
     return this.settingsCache;
@@ -323,7 +379,8 @@ export class AppCore {
     return teams.length === 0;
   }
 
-  async detectEnvironment(cwd = process.cwd()): Promise<{
+  /** Defaults to the directory runs will use, not merely to `process.cwd()`. */
+  async detectEnvironment(cwd = this.deps.workspace ?? process.cwd()): Promise<{
     claude: ClaudeEnvironment;
     workspace: WorkspaceInfo;
     storage: { driver: string; location: string };
@@ -553,9 +610,12 @@ export class AppCore {
 
   async createTeam(input: unknown): Promise<TeamWithAgents> {
     const parsed = createTeamSchema.parse(input);
+    // A team created from a terminal standing in a project belongs to that
+    // project; nothing else is a better guess.
+    const workspace = await this.resolveWorkspace({ requested: parsed.workspace });
     const team = createTeamEntity({
       ...parsed,
-      workspace: parsed.workspace ? expandPath(parsed.workspace) : undefined,
+      workspace: workspace.path,
     });
     await this.deps.storage.teams.create(team);
     await this.syncTeamFile(team.id);
@@ -581,7 +641,9 @@ export class AppCore {
     const team = createTeamEntity({
       name: input.name?.trim() || preset.name,
       description: preset.description,
-      workspace: input.workspace ? expandPath(input.workspace) : settings.defaultWorkspace,
+      workspace:
+        (await this.resolveWorkspace({ requested: input.workspace })).path ??
+        settings.defaultWorkspace,
       presetId: preset.id,
       budget: settings.defaultBudget,
     });
@@ -1035,10 +1097,11 @@ export class AppCore {
    */
   async startRun(input: unknown): Promise<Run> {
     const parsed = startRunSchema.parse(input);
-    await this.assertWorkspacesExist(
-      parsed.teamId,
-      parsed.workspace ? expandPath(parsed.workspace) : undefined,
-    );
+    const workspace = await this.resolveWorkspace({
+      requested: parsed.workspace,
+      teamId: parsed.teamId,
+    });
+    await this.assertWorkspacesExist(parsed.teamId, workspace.path);
     const run = await this.runs.createRun({
       teamId: parsed.teamId,
       objective: parsed.objective,
@@ -1048,7 +1111,9 @@ export class AppCore {
       // means. Choosing to run unmetered is a different thing, and it still
       // carries the time and interaction limits.
       budget: parsed.budget ?? (await this.budgetForTeam(parsed.teamId)),
-      workspace: parsed.workspace ? expandPath(parsed.workspace) : undefined,
+      // Resolved here rather than left to the run manager's `?? team.workspace`,
+      // so the directory the command was called from wins.
+      workspace: workspace.path,
     });
     this.emit({ type: 'run.created', run });
 

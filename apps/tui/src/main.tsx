@@ -100,7 +100,12 @@ async function main(): Promise<void> {
 
   let core: AppCore;
   try {
-    core = await createAppCore({ dbPath: args.db, provider: args.provider });
+    core = await createAppCore({
+      dbPath: args.db,
+      provider: args.provider,
+      // Where the command was called: runs work here unless told otherwise.
+      workspace: args.workspace ?? process.cwd(),
+    });
   } catch (err) {
     process.stderr.write(`Could not open claude-team: ${err instanceof Error ? err.message : String(err)}\n`);
     process.exitCode = 1;

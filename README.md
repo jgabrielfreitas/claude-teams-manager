@@ -248,6 +248,7 @@ claude-team run "Implement OAuth login" --team engineering
 # Options
 --provider fake      # deterministic provider; no tokens spent
 --db <path>          # use a specific database file
+--workspace <path>   # directory runs work in (default: the current one)
 ```
 
 `CLAUDE_TEAM_HOME` relocates the whole data directory, which is handy for
@@ -671,10 +672,32 @@ run starts.
 
 ## Workspaces and git
 
-A team points at a workspace; its agents share it by default and can override it
-individually. When the workspace is a git repository, the branch, uncommitted
-file count, last commit and upstream divergence are shown in both UIs and given
-to the agents as context.
+**Runs work in the directory you called `claude-team` from.** It is a
+command-line tool, so standing in a project and asking for work means work on
+that project — the same thing `claude` itself does. The web server follows the
+directory it was started in, and `--workspace <path>` pins something else at
+launch.
+
+The order, most specific first:
+
+| | |
+| --- | --- |
+| A workspace given when the run is started | per run, wins |
+| The directory `claude-team` was called from | the default |
+| The team's own workspace | for the cases with no terminal behind them |
+
+The team's stored directory being *below* the invocation directory is
+deliberate: a team pinned to a folder months ago should not quietly take over a
+run you started somewhere else. Both surfaces show the directory before you
+commit — the TUI in the objective prompt, the web in the start dialog — and an
+agent pinned to its own workspace still overrides all of it.
+
+Being launched from `$HOME` or `/` gets one warning on screen. Agents write
+files there; that is worth a sentence, not a refusal.
+
+When the workspace is a git repository, the branch, uncommitted file count, last
+commit and upstream divergence are shown in both UIs and given to the agents as
+context.
 
 The architecture is prepared for per-agent **git worktree** isolation — the
 runtime already models "a checkout" rather than "the checkout" — so parallel
@@ -889,7 +912,7 @@ pnpm web -- --provider fake
 pnpm test
 ```
 
-255 tests, none of which touch the Claude API:
+261 tests, none of which touch the Claude API:
 
 - **Domain** — agent and team creation, handle uniqueness, cloning semantics,
   effort coercion, capability resolution, destructive-command detection, message

@@ -17,6 +17,8 @@ interface Cli {
   provider?: string;
   port?: number;
   host: string;
+  /** Directory runs work in; defaults to where the server was started. */
+  workspace?: string;
 }
 
 function parseArgs(argv: string[]): Cli {
@@ -31,6 +33,8 @@ function parseArgs(argv: string[]): Cli {
     else if (arg === '--port') cli.port = Number(next());
     else if (arg?.startsWith('--port=')) cli.port = Number(arg.slice('--port='.length));
     else if (arg === '--host') cli.host = next() ?? cli.host;
+    else if (arg === '--workspace') cli.workspace = next();
+    else if (arg?.startsWith('--workspace=')) cli.workspace = arg.slice('--workspace='.length);
   }
   return cli;
 }
@@ -50,6 +54,9 @@ async function main(): Promise<void> {
   const core: AppCore = await createAppCore({
     dbPath: cli.dbPath,
     provider: cli.provider,
+    // The server is long-lived, so "where it was started" is the directory runs
+    // work in — same rule as the TUI, decided in one place.
+    workspace: cli.workspace ?? process.cwd(),
     // Demo mode: deterministic, token-free agent output.
     providerOptions:
       cli.provider === 'fake'
@@ -71,6 +78,7 @@ async function main(): Promise<void> {
         '',
         `  claude-team web  ${url}`,
         `  provider         ${core.provider.id}`,
+        `  workspace        ${core.invocationWorkspace() ?? '(none)'}`,
         `  storage          ${storage.driver} · ${storage.location === ':memory:' ? 'in memory' : storage.location}`,
         `  home             ${claudeTeamHome()}`,
         `  client           ${dist ?? 'served by vite (dev)'}`,

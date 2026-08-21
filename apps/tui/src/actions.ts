@@ -185,7 +185,9 @@ export async function createTeam(ui: Ui): Promise<void> {
   const workspace = await ui.dialogs.text({
     title: 'Workspace',
     label: 'path',
-    initial: settings.defaultWorkspace ?? process.cwd(),
+    // Where claude-team was called comes first: standing in a project and
+    // creating a team is a statement about that project.
+    initial: ui.core.invocationWorkspace() ?? settings.defaultWorkspace ?? process.cwd(),
     help: 'Directory the agents work in. Leave as-is to accept it.',
   });
   const team = await ui.guard(
@@ -630,10 +632,12 @@ export async function startRun(ui: Ui): Promise<void> {
   // is phrased: `RunManager.createRun` refuses an empty team and says why. The
   // call below goes through `guard`, which puts that message on the status
   // line — there is no second wording of the rule here.
+  const workspace = (await ui.core.resolveWorkspace({ teamId: team.id })).path;
   const objective = await ui.dialogs.text({
     title: `Start a run · ${team.name}`,
     label: 'objective',
     placeholder: 'Implement the login screen',
+    help: workspace ? `Working in ${workspace}` : undefined,
   });
   if (!objective?.trim()) return;
   const run = await ui.guard(
