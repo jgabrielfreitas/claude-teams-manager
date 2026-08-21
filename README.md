@@ -740,6 +740,19 @@ capability allowed and the local setup fully on, an activation lists no
 `~/.claude.json` or a workspace `.mcp.json` — a stdio server started from a
 command, or a plugin's server.
 
+**Artifacts on claude.ai are the same story, and it fails quietly.** A
+`claude.ai/code/artifact/...` URL is readable by the *interactive* Claude Code,
+whose fetch resolves it through your claude.ai login. Nothing else on the
+machine can: measured on one artifact, anonymous `curl` gets HTTP 200 and a
+14 KB page shell with none of the content, the frame host 404s, an agent here
+gets the same shell through either `WebFetch` or `curl` — and so does
+`claude -p --allowedTools WebFetch`, the plain CLI with the same credentials on
+the same machine. The capability lives in the interactive client, not in the
+binary or the login, so there is nothing to configure here.
+
+Note the failure mode: **200 with an empty shell**, not an error. An agent that
+"reads" one and summarises confidently is summarising a page header.
+
 To get something that lives on claude.ai in front of an agent, put it in the
 workspace as a file, or paste it into the objective. Files are what agents read
 best anyway.
