@@ -38,12 +38,14 @@ import {
   readyTasks,
   recomputeTaskStatuses,
   slugify,
+  sourceForSkillScope,
   startRunSchema,
   taskProgress,
   unmetered,
   toPortableTeam,
   topologicalOrder,
   uniqueSlug,
+  unreachableSkills,
   unreadCount,
   type Agent,
   type Task,
@@ -634,5 +636,41 @@ describe('budgets, and running without one', () => {
 
     expect(parsed.team.budget).toBeUndefined();
     expect(parsed.warnings.some((w) => /must still stop/i.test(w))).toBe(true);
+  });
+});
+
+describe('reaching the skills installed on this machine', () => {
+  const installed = [
+    { name: 'laudo-de-bug', scope: 'user' as const },
+    { name: 'projeto-x', scope: 'project' as const },
+  ];
+
+  it('maps a skill to the setting source that discovers it', () => {
+    expect(sourceForSkillScope('user')).toBe('user');
+    expect(sourceForSkillScope('project')).toBe('project');
+  });
+
+  it('reports nothing when skills are off — nothing is being asked for', () => {
+    expect(unreachableSkills(normaliseLocalSetup({ skills: 'none' }), installed)).toEqual([]);
+  });
+
+  it('catches the combination that looks on and quietly is not', () => {
+    // "All skills" with no setting sources: plugin skills are still found, but
+    // none of the user's own, which is the trap.
+    const stranded = unreachableSkills(normaliseLocalSetup({ skills: 'all' }), installed);
+    expect(stranded.map((s) => s.name)).toEqual(['laudo-de-bug', 'projeto-x']);
+  });
+
+  it('clears once the matching source is loaded, source by source', () => {
+    const userOnly = normaliseLocalSetup({ skills: 'all', settingSources: ['user'] });
+    expect(unreachableSkills(userOnly, installed).map((s) => s.name)).toEqual(['projeto-x']);
+
+    const both = normaliseLocalSetup({ skills: 'all', settingSources: ['user', 'project'] });
+    expect(unreachableSkills(both, installed)).toEqual([]);
+  });
+
+  it('only complains about skills that were actually chosen', () => {
+    const picked = normaliseLocalSetup({ skills: ['projeto-x'] });
+    expect(unreachableSkills(picked, installed).map((s) => s.name)).toEqual(['projeto-x']);
   });
 });

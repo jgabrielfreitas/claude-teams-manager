@@ -79,6 +79,19 @@ console.log('status  :', isolated.status, '· $' + isolated.cost.toFixed(4));
 console.log('knows codename:', isolated.text.includes(CODENAME));
 console.log('knows skill   :', /relatorio-semanal|Em curso/i.test(isolated.text));
 
+// Skills switched on with no setting sources: Claude Code discovers plugin
+// skills that way, but none installed under `~/.claude/skills` or the
+// workspace, and nothing about it is visible. Locked here so the UI's warning
+// about it can never quietly stop being true.
+const skillsOnly = await attempt('Skills only', {
+  settingSources: [],
+  skills: 'all',
+  mcpServers: false,
+});
+console.log('\n--- skills on, settings off ---');
+console.log('status  :', skillsOnly.status, '· $' + skillsOnly.cost.toFixed(4));
+console.log('sees the workspace skill:', /relatorio-semanal|Em curso/i.test(skillsOnly.text));
+
 const inherited = await attempt('Inherited', {
   settingSources: ['user', 'project'],
   skills: 'all',
@@ -94,11 +107,13 @@ const ok =
   isolated.status === 'completed' &&
   inherited.status === 'completed' &&
   !isolated.text.includes(CODENAME) &&
-  inherited.text.includes(CODENAME);
+  inherited.text.includes(CODENAME) &&
+  !/relatorio-semanal/i.test(skillsOnly.text);
 
 console.log('\nchecks:');
 console.log('  isolated run cannot see the workspace memory :', !isolated.text.includes(CODENAME));
 console.log('  inheriting run reads CLAUDE.md               :', inherited.text.includes(CODENAME));
 console.log('  inheriting run is offered the local skill    :', /relatorio-semanal|Em curso/i.test(inherited.text));
+console.log('  skills alone do NOT reach installed skills   :', !/relatorio-semanal/i.test(skillsOnly.text));
 
 process.exit(ok ? 0 : 1);

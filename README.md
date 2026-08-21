@@ -727,9 +727,17 @@ Local Claude Code** (TUI), where each part is separate:
 | User settings | `~/.claude/settings.json` and your user memory |
 | Workspace settings & CLAUDE.md | The instructions of the repo each agent works in |
 | Workspace local overrides | `.claude/settings.local.json`, the untracked one |
-| Skills | Every installed skill, or a list you choose |
+| Skills | Every installed skill, or a list you choose — see the caveat below |
 | MCP servers | The servers already configured on this machine |
 | Claude executable | Your own `claude` binary instead of the SDK's bundled one |
+
+**Skills need the settings they live under.** Claude Code discovers a skill
+through the settings file of its scope: `~/.claude/skills` comes with **user**
+settings, a workspace's `.claude/skills` comes with **project** settings. Plugin
+skills are found either way. So switching *Skills* on with no setting sources
+offers plugin skills and none of your own — a real trap, which both surfaces now
+warn about by name, with a button to switch on what is missing. The master
+toggle sets everything, so it never hits this.
 
 Two things worth knowing before you switch it on:
 
@@ -855,7 +863,7 @@ pnpm web -- --provider fake
 pnpm test
 ```
 
-250 tests, none of which touch the Claude API:
+255 tests, none of which touch the Claude API:
 
 - **Domain** — agent and team creation, handle uniqueness, cloning semantics,
   effort coercion, capability resolution, destructive-command detection, message

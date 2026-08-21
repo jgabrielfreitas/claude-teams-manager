@@ -6,6 +6,8 @@ import {
   ISOLATED_SETUP,
   describeBudget,
   isIsolatedSetup,
+  sourceForSkillScope,
+  unreachableSkills,
   type AppSettings,
   type ClaudeSettingSource,
 } from '@claude-team/domain';
@@ -74,6 +76,33 @@ function describeLocalSetup(setup: AppSettings['localSetup']): string {
   else if (Array.isArray(setup.skills) && setup.skills.length) parts.push(`${setup.skills.length} skill(s)`);
   if (setup.mcpServers) parts.push('MCP servers');
   return `on — ${parts.join(', ')}`;
+}
+
+
+/**
+ * Skills are only discovered through the setting source they live under, so
+ * turning them on without it offers plugin skills and none of your own — with
+ * nothing on screen to say why. Offering to fix it is better than a warning
+ * nobody can act on.
+ */
+async function warnAboutUnreachableSkills(ui: Ui, setup: AppSettings['localSetup']): Promise<void> {
+  const env = await ui.core.detectEnvironment().catch(() => undefined);
+  const stranded = unreachableSkills(setup, env?.claude.skills ?? []);
+  if (stranded.length === 0) return;
+
+  const missing = [...new Set(stranded.map((skill) => sourceForSkillScope(skill.scope)))];
+  const ok = await ui.dialogs.confirm({
+    title: `${stranded.length} skill(s) cannot be reached`,
+    message: `${stranded.slice(0, 4).map((s2) => s2.name).join(', ')} need "${missing.join('" and "')}" settings loaded before Claude Code finds them. Switch them on now?`,
+  });
+  if (!ok) return;
+  await ui.guard(
+    () =>
+      ui.core.updateSettings({
+        localSetup: { ...setup, settingSources: [...new Set([...setup.settingSources, ...missing])] },
+      }),
+    'Settings saved.',
+  );
 }
 
 const ROWS: Row[] = [
@@ -299,10 +328,9 @@ const ROWS: Row[] = [
       });
       if (mode === undefined) return;
       if (mode !== 'pick') {
-        await ui.guard(
-          () => ui.core.updateSettings({ localSetup: { ...s.localSetup, skills: mode as 'all' | 'none' } }),
-          'Settings saved.',
-        );
+        const next = { ...s.localSetup, skills: mode as 'all' | 'none' };
+        await ui.guard(() => ui.core.updateSettings({ localSetup: next }), 'Settings saved.');
+        await warnAboutUnreachableSkills(ui, next);
         return;
       }
       const env = await ui.guard(() => ui.core.detectEnvironment());
@@ -317,10 +345,9 @@ const ROWS: Row[] = [
         selected: Array.isArray(s.localSetup.skills) ? s.localSetup.skills : [],
       });
       if (!selected) return;
-      await ui.guard(
-        () => ui.core.updateSettings({ localSetup: { ...s.localSetup, skills: selected } }),
-        'Settings saved.',
-      );
+      const next = { ...s.localSetup, skills: selected };
+      await ui.guard(() => ui.core.updateSettings({ localSetup: next }), 'Settings saved.');
+      await warnAboutUnreachableSkills(ui, next);
     },
   },
   {

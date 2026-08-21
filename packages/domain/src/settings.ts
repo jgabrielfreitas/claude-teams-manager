@@ -2,7 +2,12 @@ import { DEFAULT_BUDGET } from './budget.js';
 import { DEFAULT_EFFORT } from './effort.js';
 import { DEFAULT_MODEL, DEFAULT_ORCHESTRATOR_MODEL } from './models.js';
 import { DEFAULT_ROUTING_LIMITS } from './routing.js';
-import { ISOLATED_SETUP, type AppSettings, type LocalSetup } from './entities.js';
+import {
+  ISOLATED_SETUP,
+  type AppSettings,
+  type ClaudeSettingSource,
+  type LocalSetup,
+} from './entities.js';
 
 export function defaultSettings(now = new Date()): AppSettings {
   return {
@@ -65,5 +70,38 @@ export function isIsolatedSetup(setup: LocalSetup): boolean {
     setup.settingSources.length === 0 &&
     (setup.skills === 'none' || (Array.isArray(setup.skills) && setup.skills.length === 0)) &&
     !setup.mcpServers
+  );
+}
+
+/**
+ * Which setting source a skill of a given scope needs before Claude Code will
+ * even discover it.
+ *
+ * Skills installed under `~/.claude/skills` come with the *user* settings, and
+ * a workspace's `.claude/skills` come with the *project* settings. Plugin
+ * skills are discovered regardless. This is not obvious, and getting it wrong
+ * is silent: skills are "on", a smaller set than you expected is offered, and
+ * nothing says why.
+ */
+export function sourceForSkillScope(scope: 'user' | 'project'): ClaudeSettingSource {
+  return scope === 'user' ? 'user' : 'project';
+}
+
+/**
+ * The skills that are switched on but cannot be reached, because the setting
+ * source that discovers them is not loaded.
+ *
+ * Empty when skills are off — nothing is being asked for — and empty when the
+ * chosen list does not include them.
+ */
+export function unreachableSkills<T extends { name: string; scope: 'user' | 'project' }>(
+  setup: LocalSetup,
+  installed: T[],
+): T[] {
+  if (setup.skills === 'none') return [];
+  const wanted = (skill: T) =>
+    setup.skills === 'all' || (Array.isArray(setup.skills) && setup.skills.includes(skill.name));
+  return installed.filter(
+    (skill) => wanted(skill) && !setup.settingSources.includes(sourceForSkillScope(skill.scope)),
   );
 }

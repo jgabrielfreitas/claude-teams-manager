@@ -3,6 +3,8 @@ import { Link, useSearchParams } from 'react-router-dom';
 import {
   APPROVAL_CATEGORIES,
   APPROVAL_CATEGORY_LABELS,
+  sourceForSkillScope,
+  unreachableSkills,
   type AgentEffort,
   type ApprovalCategory,
   type ClaudeSettingSource,
@@ -71,6 +73,11 @@ function SettingsForm({ settings }: { settings: SettingsDto }) {
     local.skills === 'none' ? 'none' : local.skills === 'all' ? 'all' : 'pick';
   const chosenSkills = Array.isArray(local.skills) ? local.skills : [];
   const detectedSkills = environment.data?.claude.skills ?? [];
+  // Skills are only discovered through the setting source they live under, so
+  // "all skills, no settings" quietly offers plugin skills and nothing of
+  // yours. Say it where the switch is, and offer the fix.
+  const outOfReach = unreachableSkills(local, detectedSkills as Array<{ name: string; scope: 'user' | 'project' }>);
+  const missingSources = [...new Set(outOfReach.map((skill) => sourceForSkillScope(skill.scope)))];
   const toggleSkill = (name: string) =>
     setLocal({
       skills: chosenSkills.includes(name)
@@ -372,6 +379,40 @@ function SettingsForm({ settings }: { settings: SettingsDto }) {
                 ]}
               />
             </Field>
+            {outOfReach.length > 0 && (
+              <div className="error-box" style={{ marginTop: 10 }}>
+                <div className="col" style={{ gap: 8 }}>
+                  <span>
+                    {outOfReach.length} skill(s) on this machine cannot be reached:{' '}
+                    <span className="mono">
+                      {outOfReach
+                        .slice(0, 4)
+                        .map((skill) => skill.name)
+                        .join(', ')}
+                      {outOfReach.length > 4 ? '…' : ''}
+                    </span>
+                    . Claude Code only finds them through the settings they live under, so they
+                    need{' '}
+                    {missingSources
+                      .map((source) => (source === 'user' ? 'your user settings' : 'workspace settings'))
+                      .join(' and ')}{' '}
+                    switched on above. Plugin skills work either way.
+                  </span>
+                  <button
+                    type="button"
+                    className="btn btn-sm"
+                    onClick={() =>
+                      setLocal({
+                        settingSources: [...new Set([...local.settingSources, ...missingSources])],
+                      })
+                    }
+                  >
+                    Switch {missingSources.length > 1 ? 'them' : 'it'} on
+                  </button>
+                </div>
+              </div>
+            )}
+
             {skillMode === 'pick' && (
               <div className="col" style={{ gap: 0 }}>
                 {detectedSkills.length === 0 && (
