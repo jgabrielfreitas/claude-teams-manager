@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
-import { SECTIONS, formatRelative, type Tone } from '@claude-team/ui-shared';
+import { sectionsFor, formatRelative, type Tone } from '@claude-team/ui-shared';
 import { ApprovalCenter } from '../state/approvals';
 import { AutoModeBanner, AutoModeToggle } from '../state/auto-mode';
 import { QuestionsProvider, useQuestions } from '../state/questions';
@@ -60,7 +60,7 @@ export function Layout() {
           </div>
 
           <nav className="nav" aria-label="Sections">
-            {SECTIONS.map((section) => (
+            {sectionsFor('web').map((section) => (
               <NavLink
                 key={section.id}
                 to={section.path}

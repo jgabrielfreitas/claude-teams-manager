@@ -83,7 +83,9 @@ export function allAvailableCommands(context: {
   agent?: boolean;
   run?: boolean;
 }): CommandDefinition[] {
-  const shared = new Set(availableCommands(context).map((command) => command.id));
+  const shared = new Set(
+    availableCommands({ ...context, surface: 'tui' }).map((command) => command.id),
+  );
   return ALL_COMMANDS.filter((command) => {
     if (!TUI_IDS.has(command.id)) return shared.has(command.id);
     switch (command.requires) {

@@ -115,11 +115,14 @@ Environment
   CLAUDE_TEAM_HOME    directory holding the database (default: ~/.claude-team)
 
 Keys inside the interface
-  1-7 sections   tab panel   c create   e edit   r run   m message
+  1-8 sections   tab panel   c create   e edit   r run   m message
   l logs   i inspect   / search   ctrl+k command palette   ? help   q quit
 
 Keys in the Teams and Agents sections
   d delete
+
+Keys in Credits (section 8)
+  space pause   r replay
 
 Keys in the Runs section
   b budget   d delete run   f full screen   y copy transcript   e export transcript

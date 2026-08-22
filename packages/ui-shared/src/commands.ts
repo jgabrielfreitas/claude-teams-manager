@@ -22,6 +22,8 @@ export interface CommandDefinition {
   keywords?: string[];
   /** True when the command destroys something; surfaces confirm first. */
   destructive?: boolean;
+  /** Surfaces this command exists on. Unmarked commands belong to both. */
+  surfaces?: readonly Surface[];
 }
 
 export const COMMANDS: CommandDefinition[] = [
@@ -33,6 +35,14 @@ export const COMMANDS: CommandDefinition[] = [
   { id: 'nav.messages', title: 'Go to Messages', group: 'Navigate', key: '5' },
   { id: 'nav.activity', title: 'Go to Activity', group: 'Navigate', key: '6' },
   { id: 'nav.settings', title: 'Go to Settings', group: 'Navigate', key: '7' },
+  {
+    id: 'nav.credits',
+    title: 'Go to Credits',
+    group: 'Navigate',
+    key: '8',
+    surfaces: ['tui'],
+    keywords: ['contributors', 'thanks', 'about', 'easter egg'],
+  },
 
   // Creation
   { id: 'team.create', title: 'Create Team', group: 'Create', key: 'c', keywords: ['new'] },
@@ -115,8 +125,17 @@ export function availableCommands(context: {
   team?: boolean;
   agent?: boolean;
   run?: boolean;
+  /**
+   * Which surface is asking. A caller that does not say gets only the
+   * commands that belong everywhere — the safe direction to fail, since the
+   * alternative is a palette entry that does nothing when chosen.
+   */
+  surface?: Surface;
 }): CommandDefinition[] {
   return COMMANDS.filter((command) => {
+    if (command.surfaces && (!context.surface || !command.surfaces.includes(context.surface))) {
+      return false;
+    }
     switch (command.requires) {
       case 'team':
         return Boolean(context.team);
@@ -159,9 +178,23 @@ export const SECTIONS = [
   { id: 'messages', label: 'Messages', path: '/messages', key: '5' },
   { id: 'activity', label: 'Activity', path: '/activity', key: '6' },
   { id: 'settings', label: 'Settings', path: '/settings', key: '7' },
+  /**
+   * Who made this. Terminal only — it is a credits screen with a starfield in
+   * it, and the marker is here so the browser's sidebar does not gain a link
+   * to a page that was never built.
+   */
+  { id: 'credits', label: 'Credits', path: '/credits', key: '8', surfaces: ['tui'] },
 ] as const;
 
 export type SectionId = (typeof SECTIONS)[number]['id'];
+export type Surface = 'tui' | 'web';
+
+/** Sections a given surface should show. Unmarked sections belong to both. */
+export function sectionsFor(surface: Surface): Array<(typeof SECTIONS)[number]> {
+  return SECTIONS.filter(
+    (section) => !('surfaces' in section) || (section.surfaces as readonly string[]).includes(surface),
+  );
+}
 
 /**
  * The TUI footer hint line, so the key legend never drifts from the bindings.

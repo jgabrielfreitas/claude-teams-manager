@@ -854,6 +854,7 @@ const NAV: Record<string, SectionId> = {
   'nav.messages': 'messages',
   'nav.activity': 'activity',
   'nav.settings': 'settings',
+  'nav.credits': 'credits',
 };
 
 /** Runs a catalogue command by id. Every id in `COMMANDS` is handled here. */

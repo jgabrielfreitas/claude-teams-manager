@@ -149,8 +149,12 @@ claude-team
 agents
 ```
 
-Seven sections — Dashboard, Teams, Agents, Runs, Messages, Activity, Settings —
-in a two-pane layout with live updates pushed from the core (no polling).
+Seven working sections — Dashboard, Teams, Agents, Runs, Messages, Activity,
+Settings — in a two-pane layout with live updates pushed from the core (no
+polling). And an eighth, **Credits**: who built this, and a thank-you, with a
+starfield drifting behind it. `space` stops the animation; leaving the section
+stops it too, because a screen nobody is looking at has no business redrawing
+twelve times a second.
 
 ### Keyboard
 
@@ -159,7 +163,7 @@ in a two-pane layout with live updates pushed from the core (no polling).
 | `↑` `↓` | navigate |
 | `↵` | select |
 | `tab` | switch panel |
-| `1`–`7` | jump to a section |
+| `1`–`8` | jump to a section (`8` is Credits) |
 | `c` | create |
 | `e` | edit |
 | `d` | delete |
@@ -912,7 +916,7 @@ pnpm web -- --provider fake
 pnpm test
 ```
 
-261 tests, none of which touch the Claude API:
+275 tests, none of which touch the Claude API:
 
 - **Domain** — agent and team creation, handle uniqueness, cloning semantics,
   effort coercion, capability resolution, destructive-command detection, message

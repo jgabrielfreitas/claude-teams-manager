@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { SECTIONS, availableCommands, filterCommands, type CommandDefinition } from '@claude-team/ui-shared';
+import { sectionsFor, availableCommands, filterCommands, type CommandDefinition } from '@claude-team/ui-shared';
 import { availableRunActions, type RunAction, type RunStatus } from '@claude-team/domain';
 import type { SearchHitDto } from '@claude-team/protocol';
 import { client } from '../api';
@@ -16,7 +16,7 @@ import { useAction, useToasts } from '../state/toasts';
  */
 
 const SECTION_PATH = new Map<string, string>(
-  SECTIONS.map((section) => [section.id, section.path]),
+  sectionsFor('web').map((section) => [section.id, section.path]),
 );
 
 /** Run commands that are only legal in some run states, and the action they are. */
@@ -55,6 +55,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
           team: Boolean(selection.teamId),
           agent: Boolean(selection.agentId),
           run: Boolean(selection.runId),
+          surface: 'web',
         }).filter((command) => allowedInState(command, selection.runStatus)),
         query,
       ),

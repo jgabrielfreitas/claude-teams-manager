@@ -17,6 +17,7 @@ import { RunFullScreen } from './views/RunFullScreen.js';
 import { MessagesView } from './views/Messages.js';
 import { ActivityView } from './views/Activity.js';
 import { SettingsView } from './views/Settings.js';
+import { CreditsView } from './views/Credits.js';
 import { Onboarding } from './views/Onboarding.js';
 import { openPendingQuestion } from './actions.js';
 
@@ -136,6 +137,8 @@ export function App(): React.JSX.Element {
         return <ActivityView {...props} />;
       case 'settings':
         return <SettingsView {...props} />;
+      case 'credits':
+        return <CreditsView {...props} />;
       default:
         return <Text>Unknown section</Text>;
     }
